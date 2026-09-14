@@ -5087,6 +5087,20 @@ var _0x33c02e = _0x400f;
                 }())();
             window['SC'] = _0x1ee324;
             // Narrow facade for the roster. No extra sockets or copied world state.
+            window.ONYXBotGame = {
+                target: function (mode) {
+                    if (!_0x1ee324.connectedTab1) return null;
+                    var tab=_0x1b521e.controllingTab===2?2:1;
+                    if (!_0x1b521e['isAliveTab'+tab]) tab=tab===1?2:1;
+                    if (!_0x1b521e['isAliveTab'+tab]) return null;
+                    var x=mode==='mouse'?_0x517fc7.canvasX:_0x1b521e['x'+tab];
+                    var y=mode==='mouse'?_0x517fc7.canvasY:_0x1b521e['y'+tab];
+                    var connection=_0x225b15.ffaServerType?tab:1;
+                    x=_0x122508.serverX(x,connection);y=_0x122508.serverY(y,connection);
+                    return Number.isFinite(x)&&Number.isFinite(y)?{x:x,y:y}:null;
+                },
+                tag: function () {return String(_0x1b521e.controllingTab===2&&_0x225b15.ffaServerType?_0x1b521e.tag2||_0x1b521e.tag:_0x1b521e.tag||'');}
+            };
             window.ONYXSpectateGame = {
                 snapshot: function () {
                     return {connected:!!_0x1ee324.connectedTab1, clients:_0x3b5e3c.clientsList,
