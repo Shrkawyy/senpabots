@@ -15,7 +15,7 @@ function world(add=[],eat=[],del=[]) {
 }
 for(const [mode,ids] of [['FFA',[101]],['DUAL',[101,102]],['MEGASPLIT',[101]]])test(mode+' spawns every assigned slot, confirms world ownership and respawns dead slots',()=>{
  const {p,sent,events}=setup(ids,ids.length);p.spawn();assert.deepEqual(sent.filter(b=>b[0]===0),ids.map((_,i)=>[0,i]));
- assert.equal(events.at(-1).type,'ready');assert.deepEqual(p.lastAlive,[]);p.spawn();assert.equal(sent.filter(b=>b[0]===0).length,ids.length);
+ assert.ok(events.some(e=>e.type==='ready'));assert.deepEqual(p.lastAlive,[]);p.spawn();assert.equal(sent.filter(b=>b[0]===0).length,ids.length);
  p.receive(world(ids.map((id,i)=>[i+1,id])));assert.equal(p.lastAlive.length,ids.length);p.action(22);assert.deepEqual(sent.slice(-ids.length),ids.map((_,i)=>[22,i,1]));
  p.receive(world([], [1]));assert.deepEqual(events.at(-1).died,[0]);p.spawn();assert.deepEqual(sent.at(-1),[0,0]);
 });
@@ -25,7 +25,18 @@ test('auth uses v4 UInt16 length and UTF16',()=>{const packet=stringPacket(13,'Ø
 
 test('COUNT 2 on a two-slot server spawns two bots, not four',()=>{
  const a=setup([101,102]),b=setup([201,202]);
- for(const bot of [a,b]) {bot.p.spawn();bot.p.spawn();assert.deepEqual(bot.sent.filter(x=>x[0]===0),[[0,0]]);assert.equal(bot.events.at(-1).slots,1);assert.equal(bot.events.at(-1).assignedSlots,2);}
+ for(const bot of [a,b]) {bot.p.spawn();bot.p.spawn();assert.deepEqual(bot.sent.filter(x=>x[0]===0),[[0,0]]);assert.equal(bot.events.find(e=>e.type==='ready').slots,1);assert.equal(bot.events.find(e=>e.type==='ready').assignedSlots,2);}
  a.p.receive(world([[1,101],[2,102]]));assert.deepEqual(a.p.lastAlive,[0]);
  a.p.action(22);assert.deepEqual(a.sent.at(-1),[22,0,1]);
+});
+
+test('pending spawn expires: retry sends bytes, live slots never respawn',()=>{
+ const {p,sent}=setup();p.spawn();p.spawn();assert.equal(sent.filter(b=>b[0]===0).length,1);
+ p.pending.set(0,Date.now()-8001);p.spawn();assert.equal(sent.filter(b=>b[0]===0).length,2);
+ assert.deepEqual(sent.slice(-4),[[10,3,66,0,111,0,116,0],[11,0],[21,0,0],[0,0]]);
+ p.receive(world([[1,101]]));p.spawn();assert.equal(sent.filter(b=>b[0]===0).length,2);
+});
+test('server messages are exposed instead of discarded',()=>{
+ const {p,events}=setup();const text=stringPacket(41,'Try later');const b=new Uint8Array(text.length+1);b[0]=41;b[1]=1;b.set(text.slice(1),2);p.receive(b.buffer);
+ assert.equal(events.at(-1).msg,'Server message (1): Try later');
 });
