@@ -1,8 +1,9 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {Protocol,stringPacket}=require('../ffa/onyx-bot-protocol.js');
-function setup(ids=[101]) {
+function setup(ids=[101],slotLimit=1) {
  const sent=[],events=[],alloc=[];const p=new Protocol(b=>sent.push([...b]),e=>events.push(e),(...a)=>alloc.push(a));
+ p.slotLimit=slotLimit;
  const b=Buffer.alloc(8+ids.length*2);b[0]=0;b.writeUInt32LE(20000,1);b.writeUInt16LE(55,5);b[7]=ids.length;ids.forEach((id,i)=>b.writeUInt16LE(id,8+i*2));
  p.receive(Uint8Array.from(b).buffer);return {p,sent,events,alloc};
 }
@@ -13,11 +14,18 @@ function world(add=[],eat=[],del=[]) {
  u16(0);u16(del.length);del.forEach(u32);return Uint8Array.from(parts).buffer;
 }
 for(const [mode,ids] of [['FFA',[101]],['DUAL',[101,102]],['MEGASPLIT',[101]]])test(mode+' spawns every assigned slot, confirms world ownership and respawns dead slots',()=>{
- const {p,sent,events}=setup(ids);p.spawn();assert.deepEqual(sent.filter(b=>b[0]===0),ids.map((_,i)=>[0,i]));
+ const {p,sent,events}=setup(ids,ids.length);p.spawn();assert.deepEqual(sent.filter(b=>b[0]===0),ids.map((_,i)=>[0,i]));
  assert.equal(events.at(-1).type,'ready');assert.deepEqual(p.lastAlive,[]);p.spawn();assert.equal(sent.filter(b=>b[0]===0).length,ids.length);
  p.receive(world(ids.map((id,i)=>[i+1,id])));assert.equal(p.lastAlive.length,ids.length);p.action(22);assert.deepEqual(sent.slice(-ids.length),ids.map((_,i)=>[22,i,1]));
  p.receive(world([], [1]));assert.deepEqual(events.at(-1).died,[0]);p.spawn();assert.deepEqual(sent.at(-1),[0,0]);
 });
-test('movement is signed little endian and sent separately to both DUAL tabs',()=>{const {p,sent}=setup([10,20]);p.move(-500,700);for(const [i,b] of sent.slice(-2).entries()){assert.deepEqual(b.slice(0,3),[20,0,i]);const v=new DataView(Uint8Array.from(b).buffer);assert.equal(v.getInt32(3,true),-500);assert.equal(v.getInt32(7,true),700);}});
+test('movement is signed little endian and sent separately to both DUAL tabs',()=>{const {p,sent}=setup([10,20],2);p.move(-500,700);for(const [i,b] of sent.slice(-2).entries()){assert.deepEqual(b.slice(0,3),[20,0,i]);const v=new DataView(Uint8Array.from(b).buffer);assert.equal(v.getInt32(3,true),-500);assert.equal(v.getInt32(7,true),700);}});
 test('captcha blocks spawning; malformed packets fail visibly',()=>{const {p,sent,events}=setup();p.receive(Uint8Array.from([7]).buffer);const n=sent.length;p.spawn();assert.equal(sent.length,n);assert.equal(events.at(-1).type,'blocked');assert.throws(()=>p.receive(Uint8Array.from([0,1]).buffer));});
 test('auth uses v4 UInt16 length and UTF16',()=>{const packet=stringPacket(13,'أ'.repeat(300),true);assert.equal(new DataView(packet.buffer).getUint16(1,true),300);assert.equal(packet.length,603);});
+
+test('COUNT 2 on a two-slot server spawns two bots, not four',()=>{
+ const a=setup([101,102]),b=setup([201,202]);
+ for(const bot of [a,b]) {bot.p.spawn();bot.p.spawn();assert.deepEqual(bot.sent.filter(x=>x[0]===0),[[0,0]]);assert.equal(bot.events.at(-1).slots,1);assert.equal(bot.events.at(-1).assignedSlots,2);}
+ a.p.receive(world([[1,101],[2,102]]));assert.deepEqual(a.p.lastAlive,[0]);
+ a.p.action(22);assert.deepEqual(a.sent.at(-1),[22,0,1]);
+});

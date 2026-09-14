@@ -1,3 +1,7 @@
+# تحديث 2.1.0 — المالتي والبوتات على Senpa
+
+ابدأ بملف START-HERE-AR.txt. التعليمات القديمة أدناه مرجع تاريخي؛ هذه النسخة مختبرة محليًا ولم يتم تأكيد gameplay حي.
+
 # ONYX UNIFIED
 
 Klient i unifikuar për `senpa.io`, i ndërtuar duke marrë implementimet më të mira nga tre

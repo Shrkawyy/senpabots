@@ -28,6 +28,7 @@
   var jwtNullWarned = false;
   var wasmWaitTimer = null;
   var secondaryInitAllowedUntil = 0;
+  var mainSlots = 0;
 
   /* Only a real user Tab press may open the second connection. */
   function armSecondaryInit() {
@@ -272,6 +273,7 @@
 
   function syncFfaType() {
     if (!isNewFfaSelected()) return;
+    if (mainSlots > 1) return;
     if (global.zt && typeof global.zt === 'object') global.zt.ffaServerType = true;
     var keys = ['cellsIDTab1', 'cellsIDTab2'];
     var roots = [global.__ONYX_GS__, global.gs, global];
@@ -310,6 +312,8 @@
     origOnError = typeof sc.onError === 'function' ? sc.onError.bind(sc) : null;
 
     sc.init = function (host, tab) {
+      if ((tab || 1) === 1) mainSlots = 0;
+      if (tab === 2 && mainSlots > 1) return null;
       var mapped = mapHost(host);
       lastConnectHost = mapped;
       spectateSent = false;
@@ -376,6 +380,7 @@
     if (origOnMessage) {
       sc.onMessage = function (data, tab) {
         var u8 = toU8(data);
+        if ((tab || 1) === 1 && u8 && u8[0] === 0 && u8.length >= 8 + 2 * u8[7]) mainSlots = u8[7];
         var result = origOnMessage(data, tab);
         if (u8 && u8.length && isNewFfaHost(lastConnectHost || selectedRaw())) {
           if (shouldLogPacket(u8, 'in')) log('PACKET-IN', describePacket(u8, 'in') + ' tab=' + (tab || 1));

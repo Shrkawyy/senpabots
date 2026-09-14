@@ -13,13 +13,14 @@ function environment(host) {
   const listeners = [];
   const sent = [];
   const initialized = [];
+  const windowEvents = {};
   const context = vm.createContext({
     console: { log() {}, warn() {} },
     document: { readyState: 'loading', addEventListener: (type, fn) => listeners.push(fn), getElementById: id => id === 'servers' ? select : null },
     location: { host: 'senpa.io' },
     localStorage: storage, sessionStorage: storage,
     crypto: { randomUUID: () => '11111111-2222-4333-8444-555555555555' },
-    addEventListener() {}, setTimeout, clearTimeout, setInterval, clearInterval,
+    addEventListener(type,fn) {windowEvents[type]=fn;}, setTimeout, clearTimeout, setInterval, clearInterval,
     ArrayBuffer, Uint8Array, DataView, Set,
     SC: { init: (...args) => initialized.push(args), send: data => sent.push(data), onMessage() {}, onClose() {}, onError() {} },
     zt: {},
@@ -28,7 +29,7 @@ function environment(host) {
   for (const file of ['onyx-servers.js', 'onyx-ffa-adapter.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   // The adapter's DOM-ready callback can run independently of tracker/network access.
   listeners[1]();
-  return { context, sent, initialized, select };
+  return { context, sent, initialized, select, windowEvents };
 }
 
 for (const [name, host, legacy] of [
@@ -78,8 +79,18 @@ test('malformed tracker hosts and unknown protocol versions retain fallback addr
 
 test('both entry points load catalogue before adapter and engine', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.ok(html.indexOf('src="onyx-servers.js"') < html.indexOf('src="onyx-ffa-adapter.js"'));
-  assert.ok(html.indexOf('src="onyx-ffa-adapter.js"') < html.indexOf('src="./deo.onyx.beautified.js'));
+  assert.ok(html.indexOf('src="onyx-servers.js"') < html.indexOf('src="onyx-ffa-adapter.js'));
+  assert.ok(html.indexOf('src="onyx-ffa-adapter.js') < html.indexOf('src="./deo.onyx.beautified.js'));
   const script = fs.readFileSync(path.join(root, 'kateronyx.user.js'), 'utf8');
   assert.ok(script.indexOf('injectScript(serversJs') < script.indexOf('injectScript(adapterJs'));
+});
+
+test('DUAL handshake keeps Tab on one connection; single-slot FFA allows user Tab',()=>{
+ for(const n of [1,2]) {
+  const {context:c,initialized,windowEvents}=environment('eu1.senpa.io:7106');
+  c.SC.init('eu1.senpa.io:7106',1);
+  const packet=new Uint8Array(8+n*2);packet[7]=n;c.SC.onMessage(packet.buffer,1);
+  windowEvents.keydown({key:'Tab',target:{tagName:'BODY'}});c.SC.init('',2);
+  assert.equal(initialized.length,n===2?1:2);
+ }
 });

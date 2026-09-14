@@ -2070,6 +2070,12 @@ var _0x33c02e = _0x400f;
                         var _0xownCid = _0x3a4a1a[_0x582c3b(0x4cd)]();
                         0x1 === _0x1d576c ? _0x3b5e3c['myClientID'] = _0xownCid : _0x3b5e3c[_0x582c3b(0x673)] = _0xownCid;
                         const _0x2f9d12 = _0x3a4a1a[_0x582c3b(0x898)]();
+                        // One server connection can supply both controllable players.
+                        if (_0x1d576c === 1) {
+                            _0x225b15.ffaServerType = _0x2f9d12 < 2;
+                            _0x3b5e3c.cellsIDTab1 = _0x225b15.ffaServerType ? new Set() : [];
+                            _0x3b5e3c.cellsIDTab2 = _0x225b15.ffaServerType ? new Set() : [];
+                        }
                         var _0x1386bc = 0x1 === _0x1d576c ? _0x3b5e3c[_0x582c3b(0x8c2)] : _0x3b5e3c[_0x582c3b(0x24b)];
                         for (let _0x2ff468 = 0x0; _0x2ff468 < _0x2f9d12; _0x2ff468++) {
                             var _0x18f2a0 = _0x3a4a1a[_0x582c3b(0x4cd)]();
@@ -2492,7 +2498,7 @@ var _0x33c02e = _0x400f;
                         'key': _0x40dbb1(0x218),
                         'value': function () {
                             var _0x28c323 = _0x40dbb1;
-                            this[_0x28c323(0x923)](), _0x1e4a8a[_0x28c323(0x30d)] = !0x1, _0x223dce[_0x28c323(0x530)](), _0x225b15['ffaServerType'] ? _0x446f71[_0x28c323(0x8ce)]() : _0x446f71[_0x28c323(0x81d)](0x1);
+                            this[_0x28c323(0x923)](), _0x1e4a8a[_0x28c323(0x30d)] = !0x1, _0x223dce[_0x28c323(0x530)](), _0x225b15['ffaServerType'] ? _0x446f71[_0x28c323(0x8ce)]() : _0x446f71[_0x28c323(0x81d)](_0x1b521e.controllingTab === 2 ? 1 : 0);
                         }
                     }, {
                         'key': _0x40dbb1(0x834),
