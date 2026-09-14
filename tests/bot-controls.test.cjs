@@ -30,7 +30,7 @@ test('game facade converts active player and mouse coordinates using the correct
 });
 
 test('auto spawn and feed handle readiness, death, pause, toggles and stop',()=>{
- const p=panel();p.ids.count.value='1';p.ids.connect.onclick();const w=p.start();
+ const p=panel();p.ids.auto.checked=true;p.ids.autoFeed.checked=true;p.ids.count.value='1';p.ids.connect.onclick();const w=p.start();
  const count=t=>w.sent.filter(m=>m.type===t).length;
  assert.equal(count('spawn'),1);p.intervals[0]();assert.equal(count('spawn'),1);assert.equal(count('feed'),0);
  w.onmessage({data:{type:'world',alive:[0],died:[]}});p.intervals[0]();assert.equal(count('feed'),1);
@@ -58,4 +58,15 @@ test('100 players allocate 50 dual connections; odd remainder requests one slot'
  assert.equal(p.workers.length,50);assert.equal(p.timers.size,0);
  const q=panel();q.ids.auto.checked=false;q.ids.count.value='3';q.ids.connect.onclick();q.start(2);const last=q.start(1);
  assert.equal(last.sent[0].slotLimit,1);assert.equal(q.workers.length,2);assert.equal(q.timers.size,0);
+});
+
+test('Auto Spawn checkbox connects once and enables mouse follow and feed; disabling stops feed',()=>{
+ const p=panel();p.ids.count.value='2';p.ids.auto.checked=true;p.ids.auto.onchange();
+ assert.equal(p.ids.target.value,'mouse');assert.equal(p.ids.follow.checked,true);assert.equal(p.ids.autoFeed.checked,true);
+ const w=p.start(2);assert.equal(w.sent.filter(m=>m.type==='spawn').length,1);
+ p.ids.auto.onchange();assert.equal(p.workers.length,1);assert.equal([...p.timers.values()].filter(t=>t.ms===0).length,0);
+ w.onmessage({data:{type:'world',alive:[0,1],died:[]}});p.setPoint({x:400,y:800});p.intervals[0]();
+ const f=w.sent.findLastIndex(m=>m.type==='feed');assert.equal(w.sent[f-1].type,'move');assert.equal(w.sent[f-1].x,400);
+ const feeds=w.sent.filter(m=>m.type==='feed').length;p.setPoint(null);p.intervals[0]();assert.equal(w.sent.filter(m=>m.type==='feed').length,feeds);
+ p.ids.auto.checked=false;p.ids.auto.onchange();p.setPoint({x:1,y:2});p.intervals[0]();assert.equal(w.sent.filter(m=>m.type==='feed').length,feeds);assert.equal(p.ids.autoFeed.checked,false);
 });
