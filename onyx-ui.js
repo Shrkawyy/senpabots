@@ -40,7 +40,7 @@
     var head = $('leaderboard-head');
     if (head) {
       function enforceLeaderboardName() {
-        if (head.textContent !== 'ZkaOnyx') head.textContent = 'ZkaOnyx';
+        if (head.textContent !== 'OnyxAlbion') head.textContent = 'OnyxAlbion';
         head.style.color = '#e0a82e';
         head.style.fontSize = '36px';
       }

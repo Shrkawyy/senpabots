@@ -19,6 +19,7 @@ const bridge=`
   }
   self.addEventListener('message',attach);
 })();
+self.postMessage({type:'log',msg:'Codec frame loaded; initializing WASM'});
 self.__ONYX_BOT_WASM_BYTES__=new Uint8Array(${bytes});
 `;
 const source=bridge+core;
@@ -29,9 +30,11 @@ const factory=`/* Native Window codec isolation: no fake DOM or shared WASM hand
     const frame=document.createElement('iframe'),channel=new MessageChannel();
     let closed=false;
     const codec={onmessage:null,onerror:null,
+      isAttached(){return frame.isConnected;},
       postMessage(message){if(!closed)channel.port1.postMessage(message);},
       terminate(){if(closed)return;closed=true;channel.port1.close();frame.remove();}
     };
+    frame.setAttribute('data-onyx-codec','local');
     frame.hidden=true;frame.title='Bot connection';frame.setAttribute('aria-hidden','true');
     channel.port1.onmessage=e=>{if(!closed&&codec.onmessage)codec.onmessage(e);};
     frame.onload=()=>{if(!closed)frame.contentWindow.postMessage('onyx-codec-init','*',[channel.port2]);};
@@ -51,4 +54,4 @@ user=user.slice(0,start)+`  // Embedded bot assets: generated from the same file
     await injectScript(${JSON.stringify(read('onyx-bots.js'))}, 'onyx-bots.js');
   }
 `+user.slice(end);
-user=user.replaceAll('2.0.6','2.1.0');fs.writeFileSync(path.join(base,'kateronyx.user.js'),user);
+user=user.replaceAll('2.0.6','2.1.1').replaceAll('2.1.0','2.1.1');fs.writeFileSync(path.join(base,'kateronyx.user.js'),user);
