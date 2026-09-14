@@ -7,11 +7,11 @@ function panel(){
  const document={baseURI:'https://senpa.io/web/',hidden:false,body:{appendChild(){}},createElement(){const e=el();e.attachShadow=()=>root;return e;},getElementById:()=>({value:'server'}),addEventListener(){}};
  const c={document,URL,console,Date,Number,navigator:{},setTimeout(fn,ms){const id=++n;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(fn){intervals.push(fn);return intervals.length;},clearInterval(){},addEventListener(type,fn){(events[type]??=[]).push(fn);},ONYXServers:{find:()=>({host:'eu1.senpa.io:7112',mode_name:'Mega'})},ONYXFfaAdapter:{wsUrl:()=> 'wss://eu1.senpa.io:7112?po=senpa.io',readJwt:()=> 'null'},ONYXBotGame:{target:()=>point,tag:()=> 'Crew'},ONYXCreateBotCodec(){const w={sent:[],postMessage(m){this.sent.push(m);},terminate(){this.closed=true;},isAttached:()=>true};workers.push(w);return w;}};c.window=c;
  vm.runInNewContext(read('onyx-bots.js'),c);
- function start(){const [id,t]=[...timers].sort((a,b)=>a[1].ms-b[1].ms)[0];timers.delete(id);t.fn();const w=workers.at(-1);for(const data of [{type:'codec-ready'},{type:'ready',slots:1,border:20000}])w.onmessage({data});return w;}
+ function start(slots=1){const [id,t]=[...timers].sort((a,b)=>a[1].ms-b[1].ms)[0];timers.delete(id);t.fn();const w=workers.at(-1);for(const data of [{type:'codec-ready'},{type:'ready',slots,border:20000}])w.onmessage({data});return w;}
  function key(type,code,tagName='BODY'){const e={code,composedPath:()=>[{tagName}],preventDefault(){},stopImmediatePropagation(){}};(events[type]||[]).forEach(fn=>fn(e));}
  return {ids,timers,workers,start,key,events,intervals,setPoint:v=>point=v};
 }
-test('100 bot request is staggered and Stop cancels queued starts',()=>{const p=panel();p.ids.count.value='150';p.ids.connect.onclick();assert.equal(p.ids.count.value,100);assert.equal(p.timers.size,100);assert.equal(Math.max(...[...p.timers.values()].map(t=>t.ms)),99000);p.ids.stop.onclick();assert.equal(p.timers.size,0);assert.equal(p.workers.length,0);});
+test('100 bot request is staggered and Stop cancels queued starts',()=>{const p=panel();p.ids.count.value='150';p.ids.connect.onclick();assert.equal(p.ids.count.value,100);assert.equal(p.timers.size,1);p.ids.stop.onclick();assert.equal(p.timers.size,0);assert.equal(p.workers.length,0);});
 test('spawn targets active player, passes TAG, keyboard split and held feed stop on release',()=>{
  const p=panel();p.ids.auto.checked=false;p.ids.autoFeed.checked=false;p.ids.count.value='1';p.ids.connect.onclick();const w=p.start();assert.equal(w.sent[0].tag,'Crew');
  p.key('keydown','KeyZ');assert.equal(w.sent.at(-1).type,'spawn');assert.equal(w.sent.at(-2).x,900);
@@ -43,4 +43,19 @@ test('auto spawn and feed handle readiness, death, pause, toggles and stop',()=>
  p.ids.auto.checked=false;p.intervals[0]();assert.equal(count('spawn'),2);
  p.ids.auto.checked=true;p.ids.auto.onchange();assert.equal(count('spawn'),3);
  p.ids.stop.onclick();const sent=w.sent.length;p.intervals[0]();assert.equal(w.sent.length,sent);assert.equal(p.timers.size,0);
+});
+
+test('2 requested players share one dual connection and both receive controls',()=>{
+ const p=panel();p.ids.count.value='2';p.ids.connect.onclick();const w=p.start(2);
+ assert.equal(w.sent[0].slotLimit,2);assert.equal(p.workers.length,1);
+ assert.equal([...p.timers.values()].filter(t=>t.ms===1000).length,0);
+ w.onmessage({data:{type:'world',alive:[0,1],died:[]}});p.key('keydown','KeyX');assert.equal(w.sent.at(-1).type,'split');
+ assert.match(p.ids.counts.textContent,/2 allocated.*2 ready.*2 alive/);
+});
+test('100 players allocate 50 dual connections; odd remainder requests one slot',()=>{
+ const p=panel();p.ids.auto.checked=false;p.ids.count.value='100';p.ids.connect.onclick();
+ for(let i=0;i<50;i++){const w=p.start(2);assert.equal(w.sent[0].slotLimit,100-i*2);}
+ assert.equal(p.workers.length,50);assert.equal(p.timers.size,0);
+ const q=panel();q.ids.auto.checked=false;q.ids.count.value='3';q.ids.connect.onclick();q.start(2);const last=q.start(1);
+ assert.equal(last.sent[0].slotLimit,1);assert.equal(q.workers.length,2);assert.equal(q.timers.size,0);
 });

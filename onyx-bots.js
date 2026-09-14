@@ -3,16 +3,16 @@
   'use strict';
   if (window.ONYXBots) return;
   const scriptBase = new URL(window.__KATERONYX_BASE_URL || '.', document.baseURI);
-  const state = {bots: [], generation: 0, paused: false, target: null, host: '', logs: [], spawnWanted: false};
+  const state = {bots: [], generation: 0, paused: false, target: null, host: '', logs: [], spawnWanted: false, remaining: 0};
   const host = document.createElement('div'); host.id = 'onyx-bots-panel';
   Object.assign(host.style, {position:'fixed', right:'16px', top:'70px', zIndex:'100000', maxWidth:'calc(100vw - 24px)'});
   const root = host.attachShadow({mode:'open'});
   root.innerHTML = `<style>
   :host{font:12px Arial,sans-serif;color:#c8cbce}*{box-sizing:border-box}button,input,select{font:inherit;color:inherit;background:#101214;border:1px solid #303438;border-radius:4px;min-height:34px;padding:8px}button{cursor:pointer}button:hover{background:#252a30;border-color:#6a7480}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #7dd3fc}button:disabled{opacity:.4;cursor:default}section{width:380px;max-width:calc(100vw - 24px);background:#0a0c0eed;border:1px solid #303438;border-radius:8px;box-shadow:0 12px 45px #0009;overflow:hidden}header{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #272b30}header strong{flex:1;font-size:13px}header small{color:#929ba4;font-size:10px}main{padding:12px;max-height:calc(100vh - 155px);overflow:auto}nav,.row,.actions{display:flex;gap:8px;margin-bottom:12px}nav button{flex:1;font-size:10px}nav button[aria-selected=true]{border-color:#8294a8}label{display:block;color:#909aa5;font-size:10px;line-height:1.5}label input:not([type=checkbox]),label select{width:100%;display:block;margin-top:4px}label.grow{flex:1}.count{width:72px}.checks{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}.checks label{display:flex;align-items:center;gap:5px}input[type=checkbox]{min-height:0;accent-color:#b1c6d9}.actions button{flex:1}footer{border:1px solid #282c30;border-radius:4px;padding:9px;color:#93a3b4;overflow-wrap:anywhere}.hint{font-size:11px;color:#9ba6b1;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px monospace;max-height:350px;overflow:auto}.bot{padding:10px 0;border-bottom:1px solid #292e33} [hidden]{display:none!important}
-  </style><section><header><strong>🤖 GAME BOTS · 2.1.7</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
+  </style><section><header><strong>🤖 GAME BOTS · 2.1.8</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
   <nav><button data-tab="controls" aria-selected="true">CONTROLS</button><button data-tab="active">ACTIVE BOTS</button><button data-tab="console">CONSOLE</button></nav>
   <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
-  <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Count = bot players (2 means 2, including on DUAL).<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
+  <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Count = total players, shared across server connections.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
   <div class="row"><label class="grow">TARGET<select id="target"><option value="player">Follow me · اتجمع عندي</option><option value="mouse">Mouse · الماوس</option><option value="hold">Hold current point</option></select></label></div>
   <p class="hint">Z: Spawn · X: Split · hold C: Mass<br>Follow me gathers bots after spawn. The server chooses spawn locations.<br>100 maximum requested; connections start one per second.</p><p id="targetStatus" class="hint"></p><label>PANEL OPACITY<input id="opacity" type="range" min="35" max="100" value="100"></label>
   <div class="row"><label class="grow">SPAWN KEY<input id="spawnKey" readonly placeholder="Click to bind"></label><label class="grow">SPLIT KEY<input id="splitKey" readonly placeholder="Click to bind"></label><label class="grow">MASS KEY<input id="feedKey" readonly placeholder="Click to bind"></label></div>
@@ -42,7 +42,7 @@
     return point;
   }
   function render() {
-    $('counts').textContent = `${state.bots.length} total | ${state.bots.filter(b=>b.ready).length} ready | ${state.bots.reduce((n,b)=>n+b.alive.length,0)} alive`;
+    $('counts').textContent = `${state.bots.reduce((n,b)=>n+b.slots,0)} allocated | ${state.bots.filter(b=>b.ready).reduce((n,b)=>n+b.slots,0)} ready | ${state.bots.reduce((n,b)=>n+b.alive.length,0)} alive`;
     $('active').replaceChildren(...state.bots.map(b => { const el = document.createElement('div'); el.className='bot'; el.textContent=`${b.name} · ${b.status} · ${b.alive.length}/${b.slots} slots alive`; return el; }));
     for (const id of ['spawn','split','feed']) $(id).disabled = state.paused || !state.bots.some(b=>b.ready);
     $('connect').disabled = state.bots.some(b=>b.worker||b.status==='Queued');
@@ -52,7 +52,7 @@
     if (b.worker) { b.worker.postMessage({type:'close'}); b.worker.terminate(); b.worker=null; }
     b.ready=false; b.alive=[]; b.status=reason; render();
   }
-  function stop(reason='Stopped') { feeding=false;state.generation++; state.bots.forEach(b=>dispose(b,reason)); state.spawnWanted=false; state.paused=false; $('pause').textContent='Ⅱ Pause'; render(); log(reason); }
+  function stop(reason='Stopped') { feeding=false;state.generation++; state.remaining=0; state.bots.forEach(b=>dispose(b,reason)); state.spawnWanted=false; state.paused=false; $('pause').textContent='Ⅱ Pause'; render(); log(reason); }
   function spawnBot(b) {
     if (!b.ready || !b.worker || state.paused || b.spawnTimer || b.respawnTimer || b.alive.length === b.slots) return;
     aim(b);
@@ -76,9 +76,9 @@
       if(generation!==state.generation || b.worker!==worker) return;
       const m=event.data;
       if(m.type==='log') log(b.name+': '+m.msg);
-      if(m.type==='codec-ready') { log(b.name+': WASM ready; opening game connection.');b.status='Connecting'; worker.postMessage({type:'connect',url:window.ONYXFfaAdapter.wsUrl(entry.host),name:b.name,token:window.ONYXFfaAdapter.readJwt(),tag:window.ONYXBotGame?window.ONYXBotGame.tag():''}); }
+      if(m.type==='codec-ready') { log(b.name+': WASM ready; opening game connection.');b.status='Connecting'; worker.postMessage({type:'connect',url:window.ONYXFfaAdapter.wsUrl(entry.host),name:b.name,slotLimit:b.requestedSlots,token:window.ONYXFfaAdapter.readJwt(),tag:window.ONYXBotGame?window.ONYXBotGame.tag():''}); }
       if(m.type==='open') {b.status='Authenticating';log(b.name+': WebSocket open; waiting for server handshake.');}
-      if(m.type==='ready') {clearTimeout(b.timer);b.ready=true;b.slots=m.slots;b.border=m.border;b.status='Ready';log(b.name+': ready, '+m.slots+' bot player; server assigned '+(m.assignedSlots||m.slots)+' slots.');if($('auto').checked||state.spawnWanted) spawnBot(b);}
+      if(m.type==='ready') {if(b.ready)return;clearTimeout(b.timer);b.ready=true;b.slots=m.slots;state.remaining=Math.max(0,state.remaining-b.slots);b.border=m.border;b.status='Ready';log(b.name+': ready, '+m.slots+' controlled players; server assigned '+(m.assignedSlots||m.slots)+' slots.');if($('auto').checked||state.spawnWanted) spawnBot(b);queueNext(entry,generation);}
       if(m.type==='world') {
         const previous=b.status+':'+b.alive.join(',');
         b.alive=m.alive;
@@ -92,12 +92,17 @@
       render();
     }; render();
   }
+  function queueNext(entry,generation,delay=1000) {
+    if(generation!==state.generation||state.remaining<=0)return;
+    const first=state.bots.reduce((n,b)=>n+b.slots,0)+1;
+    const b={name:($('name').value.trim()||'Bot')+' '+first,requestedSlots:state.remaining,ready:false,slots:0,alive:[],status:'Queued',worker:null};
+    state.bots.push(b);b.timer=setTimeout(()=>launch(b,entry,generation),delay);
+  }
   $('connect').onclick=()=>{
     const entry=selected(); if(!entry || !window.ONYXFfaAdapter) return log('Select a supported game server first.');
     stop('Starting '+entry.mode_name); state.bots=[];state.host=entry.host;state.target=null;
     const count=Math.min(100,Math.max(1,Math.trunc(Number($('count').value)||1)));$('count').value=count;
-    const generation=state.generation;
-    for(let i=0;i<count;i++) {const b={name:($('name').value.trim()||'Bot')+' '+(i+1),ready:false,slots:0,alive:[],status:'Queued',worker:null};state.bots.push(b);b.timer=setTimeout(()=>launch(b,entry,generation),i*1000);}
+    state.remaining=count;queueNext(entry,state.generation,0);
     render();
   };
   for(const id of ['spawn','split','feed']) $(id).onclick=()=>action(id);

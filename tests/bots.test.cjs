@@ -23,7 +23,7 @@ test('movement is signed little endian and sent separately to both DUAL tabs',()
 test('captcha blocks spawning; malformed packets fail visibly',()=>{const {p,sent,events}=setup();p.receive(Uint8Array.from([7]).buffer);const n=sent.length;p.spawn();assert.equal(sent.length,n);assert.equal(events.at(-1).type,'blocked');assert.throws(()=>p.receive(Uint8Array.from([0,1]).buffer));});
 test('auth uses v4 UInt16 length and UTF16',()=>{const packet=stringPacket(13,'أ'.repeat(300),true);assert.equal(new DataView(packet.buffer).getUint16(1,true),300);assert.equal(packet.length,603);});
 
-test('COUNT 2 on a two-slot server spawns two bots, not four',()=>{
+test('explicit single-slot limit leaves the other assigned slot unspawned',()=>{
  const a=setup([101,102]),b=setup([201,202]);
  for(const bot of [a,b]) {bot.p.spawn();bot.p.spawn();assert.deepEqual(bot.sent.filter(x=>x[0]===0),[[0,0]]);assert.equal(bot.events.find(e=>e.type==='ready').slots,1);assert.equal(bot.events.find(e=>e.type==='ready').assignedSlots,2);}
  a.p.receive(world([[1,101],[2,102]]));assert.deepEqual(a.p.lastAlive,[0]);
@@ -39,4 +39,15 @@ test('pending spawn expires: retry sends bytes, live slots never respawn',()=>{
 test('server messages are exposed instead of discarded',()=>{
  const {p,events}=setup();const text=stringPacket(41,'Try later');const b=new Uint8Array(text.length+1);b[0]=41;b[1]=1;b.set(text.slice(1),2);p.receive(b.buffer);
  assert.equal(events.at(-1).msg,'Server message (1): Try later');
+});
+
+test('dual connection controls both players and only respawns the dead slot',()=>{
+ const {p,sent}=setup([101,102],2);p.spawn();p.receive(world([[1,101],[2,102],[3,102]]));
+ assert.deepEqual(p.lastAlive,[0,1]);p.action(23);assert.deepEqual(sent.slice(-2),[[23,0,0],[23,1,0]]);
+ p.receive(world([], [1]));p.spawn();assert.deepEqual(sent.at(-1),[0,0]);
+ assert.deepEqual(p.lastAlive,[1]);
+});
+test('UInt16 server-message length does not shift UTF16 characters',()=>{
+ const {p,events}=setup();const text=stringPacket(41,'Only 2 hats',true),b=new Uint8Array(text.length+1);
+ b[0]=41;b[1]=1;b.set(text.slice(1),2);p.receive(b.buffer);assert.equal(events.at(-1).msg,'Server message (1): Only 2 hats');
 });
