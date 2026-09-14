@@ -4,13 +4,15 @@ const base=path.resolve(__dirname,'..');const read=f=>fs.readFileSync(path.join(
 let core=read('ffa/onyx-bot-worker.js')
  .replace("importScripts('./onyx-bot-protocol.js');",read('ffa/onyx-bot-protocol.js'))
  .replace("importScripts('./wasmLoader.js');",()=>read('ffa/wasmLoader.js'))
+ .replaceAll('self.postMessage', 'emitCodecMessage')
  .replace('moduleInstance = wasmFactory({','moduleInstance = wasmFactory({\n        wasmBinary: self.__ONYX_BOT_WASM_BYTES__,');
 const bytes=JSON.stringify([...fs.readFileSync(path.join(base,'ffa/bundle.wasm'))]);
 const bridge=`
+var emitCodecMessage;
 (function(){
   const queue=[];let port=null;
-  self.postMessage=message=>{if(port)port.postMessage(message);else queue.push(message);};
-  const report=e=>self.postMessage({type:'error',msg:String(e.message||e.reason&&e.reason.message||e.reason||'Codec error')});
+  emitCodecMessage=message=>{if(port)port.postMessage(message);else queue.push(message);};
+  const report=e=>emitCodecMessage({type:'error',msg:String(e.message||e.reason&&e.reason.message||e.reason||'Codec error')});
   self.addEventListener('error',report);self.addEventListener('unhandledrejection',report);
   function attach(e){
     if(e.source!==parent||e.data!=='onyx-codec-init'||!e.ports[0]||port)return;
@@ -19,7 +21,7 @@ const bridge=`
   }
   self.addEventListener('message',attach);
 })();
-self.postMessage({type:'log',msg:'Codec frame loaded; initializing WASM'});
+emitCodecMessage({type:'log',msg:'Codec frame loaded; initializing WASM'});
 self.__ONYX_BOT_WASM_BYTES__=new Uint8Array(${bytes});
 `;
 const source=bridge+core;
@@ -52,6 +54,10 @@ user=user.slice(0,start)+`  // Embedded bot assets: generated from the same file
   async function mountBotPanel() {
     await injectScript(${JSON.stringify(factory)}, 'onyx-bot-codec.js');
     await injectScript(${JSON.stringify(read('onyx-bots.js'))}, 'onyx-bots.js');
+    await injectScript(${JSON.stringify(read('onyx-spectate.js'))}, 'onyx-spectate.js');
   }
 `+user.slice(end);
-user=user.replaceAll('2.0.6','2.1.1').replaceAll('2.1.0','2.1.1');fs.writeFileSync(path.join(base,'kateronyx.user.js'),user);
+// Version only our metadata, never CDN dependency URLs or embedded libraries.
+const release='2.1.4';
+user=user.replace(/^(\/\/ @version\s+)[^\r\n]+/m, (_,prefix)=>prefix+release)
+ .replace(/var VERSION = '[^']+';/, ()=>`var VERSION = '${release}';`);fs.writeFileSync(path.join(base,'kateronyx.user.js'),user);

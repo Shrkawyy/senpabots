@@ -15,12 +15,15 @@ test('embedded iframe codec starts the real WASM and closes its message channel'
  let frame;const context={window:{},MessageChannel,document:{createElement(){return frame={setAttribute(){},remove(){this.removed=true;}};},body:{appendChild(){}}}};
  vm.runInNewContext(read('onyx-bot-codec.js'),context);const codec=context.window.ONYXCreateBotCodec();
  const source=frame.srcdoc.match(/<script>([\s\S]*)<\/script>/)[1],messages=[],listeners={};
- const c={console,URL,WebAssembly,crypto:require('node:crypto').webcrypto,TextDecoder,TextEncoder,setTimeout,clearTimeout,setInterval,clearInterval,location:{href:'https://senpa.io/web/'},document:{location:{href:'https://senpa.io/web/'}},WebSocket,addEventListener:(type,fn)=>{listeners[type]=fn;},removeEventListener(){},parent:{}};
+ const c={console,URL,WebAssembly,crypto:require('node:crypto').webcrypto,TextDecoder,TextEncoder,setTimeout,clearTimeout,setInterval,clearInterval,location:{href:'about:srcdoc'},document:{location:{href:'about:srcdoc'}},WebSocket,addEventListener:(type,fn)=>{listeners[type]=fn;},removeEventListener(){},parent:{}};
  c.self=c;c.window=c;
+ c.postMessage=function(data,origin,ports){listeners.message({source:c.parent,data,ports});};
+ const nativePostMessage=c.postMessage;
  vm.runInNewContext(source,c);
+ assert.equal(c.postMessage,nativePostMessage,"codec must not replace native Window.postMessage");
  const ready=new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>reject(Error('WASM did not initialize')),3000);
-  listeners.message({source:c.parent,data:'onyx-codec-init',ports:[{postMessage(m){messages.push(m);if(m.type==='error'){clearTimeout(timer);reject(Error(m.msg));}if(m.type==='codec-ready'){clearTimeout(timer);resolve();}}}]});
+  c.postMessage('onyx-codec-init','*',[{postMessage(m){messages.push(m);if(m.type==='error'){clearTimeout(timer);reject(Error(m.msg));}if(m.type==='codec-ready'){clearTimeout(timer);resolve();}}}]);
  });
  try {await ready;assert(messages.some(m=>m.type==='codec-ready'));}finally{codec.terminate();assert.equal(frame.removed,true);}
 });

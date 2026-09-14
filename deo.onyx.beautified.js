@@ -5086,6 +5086,28 @@ var _0x33c02e = _0x400f;
                     }]), _0x670c28;
                 }())();
             window['SC'] = _0x1ee324;
+            // Narrow facade for the roster. No extra sockets or copied world state.
+            window.ONYXSpectateGame = {
+                snapshot: function () {
+                    return {connected:!!_0x1ee324.connectedTab1, clients:_0x3b5e3c.clientsList,
+                        players:_0x3b5e3c.playersList, cells:_0x3b5e3c.cellsTab1};
+                },
+                enter: function () {
+                    if (!_0x1ee324.connectedTab1) return 'اتصل بالسيرفر أولًا';
+                    if (_0x1b521e.isAlive) return 'أنت بتلعب حاليًا؛ ادخل المشاهدة بعد انتهاء اللعب';
+                    _0x446f71.spectate(1);_0x247292.close();return '';
+                },
+                watch: function (pid, nick) {
+                    var error=this.enter();if(error)return error;
+                    var visible=false;
+                    _0x3b5e3c.cellsTab1.forEach(function(c){if(c.parentPlayerID===pid&&!c.isRemoved)visible=true;});
+                    if(!visible)return 'اللاعب خارج نطاق الرؤية الحالي';
+                    _0x1e4a8a.freeSpectate=true;
+                    Object.assign(_0x20a728.target1,{turnedOn:true,parentPlayerID:pid,nick:nick,outOfView:false});
+                    _0x20a728.target2.turnedOn=false;_0x20a728.update();_0x223dce.targetMode();return '';
+                }
+            };
+
             var _0x350d30 = function (_0x281633) {
                 var _0x23bef4 = _0x284863;
                 _0x281633[_0x23bef4(0x490)] = {}, _0x281633['on'] = function (_0x230809, _0x28370e) {
