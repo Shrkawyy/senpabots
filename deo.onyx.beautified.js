@@ -1,3 +1,12 @@
+/* Minimum loader generation for the hosted Senpa client. Compatibility gate, not authentication. */
+(function(){
+  if(window.location && /(^|\.)senpa\.io$/i.test(window.location.hostname) && window.__ONYX_LOADER_GENERATION__ !== 2){
+    const message='This ONYX script is outdated. Install the new kateronyx.user.js. السكربت قديم؛ ثبّت النسخة الجديدة.';
+    if(document.body){const notice=document.createElement('p');notice.textContent=message;notice.style.cssText='padding:40px;color:white;background:#111;font:20px sans-serif';document.body.replaceChildren(notice);document.body.style.visibility='visible';}
+    throw new Error(message);
+  }
+})();
+/* End loader gate */
 var _0x33c02e = _0x400f;
 (function (_0x28912b, _0x398125) {
     var _0x5a4f2d = _0x400f,

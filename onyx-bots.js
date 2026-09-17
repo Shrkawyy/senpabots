@@ -9,7 +9,7 @@
   const root = host.attachShadow({mode:'open'});
   root.innerHTML = `<style>
   :host{font:12px Arial,sans-serif;color:#c8cbce}*{box-sizing:border-box}button,input,select{font:inherit;color:inherit;background:#101214;border:1px solid #303438;border-radius:4px;min-height:34px;padding:8px}button{cursor:pointer}button:hover{background:#252a30;border-color:#6a7480}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #7dd3fc}button:disabled{opacity:.4;cursor:default}section{width:380px;max-width:calc(100vw - 24px);background:#0a0c0eed;border:1px solid #303438;border-radius:8px;box-shadow:0 12px 45px #0009;overflow:hidden}header{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #272b30}header strong{flex:1;font-size:13px}header small{color:#929ba4;font-size:10px}main{padding:12px;max-height:calc(100vh - 155px);overflow:auto}nav,.row,.actions{display:flex;gap:8px;margin-bottom:12px}nav button{flex:1;font-size:10px}nav button[aria-selected=true]{border-color:#8294a8}label{display:block;color:#909aa5;font-size:10px;line-height:1.5}label input:not([type=checkbox]),label select{width:100%;display:block;margin-top:4px}label.grow{flex:1}.count{width:72px}.checks{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}.checks label{display:flex;align-items:center;gap:5px}input[type=checkbox]{min-height:0;accent-color:#b1c6d9}.actions button{flex:1}footer{border:1px solid #282c30;border-radius:4px;padding:9px;color:#93a3b4;overflow-wrap:anywhere}.hint{font-size:11px;color:#9ba6b1;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px monospace;max-height:350px;overflow:auto}.bot{padding:10px 0;border-bottom:1px solid #292e33} [hidden]{display:none!important}
-  </style><section><header><strong>🤖 GAME BOTS · 2.1.9</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
+  </style><section><header><strong>🤖 GAME BOTS · 2.2.0</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
   <nav><button data-tab="controls" aria-selected="true">CONTROLS</button><button data-tab="active">ACTIVE BOTS</button><button data-tab="console">CONSOLE</button></nav>
   <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
   <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Count = total players, shared across server connections.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
@@ -17,7 +17,7 @@
   <p class="hint">Z: Spawn · X: Split · hold C: Mass<br>Enable AUTO SPAWN + FEED to connect, spawn and feed toward your mouse.<br>The server chooses initial spawn locations; bots move toward the target afterward.<br>100 maximum requested; connections start one per second.</p><p id="targetStatus" class="hint"></p><label>PANEL OPACITY<input id="opacity" type="range" min="35" max="100" value="100"></label>
   <div class="row"><label class="grow">SPAWN KEY<input id="spawnKey" readonly placeholder="Click to bind"></label><label class="grow">SPLIT KEY<input id="splitKey" readonly placeholder="Click to bind"></label><label class="grow">MASS KEY<input id="feedKey" readonly placeholder="Click to bind"></label></div>
   <div class="actions"><button id="connect">⚡ Connect</button><button id="spawn">▶ Spawn</button><button id="split">✂ Split</button><button id="feed">● Mass</button></div>
-  <div class="checks"><label><input id="auto" type="checkbox">AUTO SPAWN + FEED</label><label><input id="autoFeed" type="checkbox">AUTO FEED</label><label><input id="respawn" type="checkbox">RESPAWN</label><label><input id="follow" type="checkbox" checked>FOLLOW</label></div>
+  <div class="checks"><label><input id="auto" type="checkbox">AUTO SPAWN + FEED</label><label><input id="autoSplit" type="checkbox">AUTO SPLIT · 1s</label><label><input id="autoFeed" type="checkbox">AUTO FEED</label><label><input id="respawn" type="checkbox">RESPAWN</label><label><input id="follow" type="checkbox" checked>FOLLOW</label></div>
   <div class="actions"><button id="pause">Ⅱ Pause</button><button id="stop">■ Stop All</button></div></div>
   <div id="active" hidden></div><div id="console" hidden><button id="copy">Copy diagnostics</button><pre id="log"></pre></div>
   <footer id="status">Ready — select a server and press Connect.</footer></main></section>`;
@@ -30,9 +30,9 @@
   }
   function selected() { const el = document.getElementById('servers'); return window.ONYXServers && window.ONYXServers.find(el && el.value); }
   function target() {
-    if($('target').value==='hold') return state.target;
+    if(!$('autoSplit').checked&&$('target').value==='hold') return state.target;
     const api=window.ONYXBotGame;
-    const value=api&&api.target($('target').value);
+    const value=api&&api.target($('autoSplit').checked?'mouse':$('target').value);
     state.target=value&&Number.isFinite(value.x)&&Number.isFinite(value.y)?value:null;
     return state.target;
   }
@@ -40,6 +40,12 @@
     const point=target();
     if(point&&b.worker&&b.ready)b.worker.postMessage({type:'move',...point});
     return point;
+  }
+  function autoSplit(b) {
+    if(!$('autoSplit').checked||state.paused||!b.ready||!b.worker||!b.alive.length)return;
+    const now=Date.now();if(b.lastAutoSplit!=null&&now-b.lastAutoSplit<1000)return;
+    if(!aim(b))return;
+    b.worker.postMessage({type:'split'});b.lastAutoSplit=now;
   }
   function render() {
     $('counts').textContent = `${state.bots.reduce((n,b)=>n+b.slots,0)} allocated | ${state.bots.filter(b=>b.ready).reduce((n,b)=>n+b.slots,0)} ready | ${state.bots.reduce((n,b)=>n+b.alive.length,0)} alive`;
@@ -82,6 +88,8 @@
       if(m.type==='world') {
         const previous=b.status+':'+b.alive.join(',');
         b.alive=m.alive;
+        if(!b.alive.length)b.lastAutoSplit=null;
+        autoSplit(b);
         if(b.alive.length&&$('follow').checked&&!state.paused)aim(b);
         if(b.alive.length===b.slots){clearTimeout(b.spawnTimer);b.spawnTimer=null;}
         b.status=b.alive.length?'Alive':b.spawnTimer?'Spawning':'Ready';
@@ -108,16 +116,17 @@
   for(const id of ['spawn','split','feed']) $(id).onclick=()=>action(id);
   $('auto').onchange=()=>{
     if(!$('auto').checked) {
-      $('autoFeed').checked=false;feeding=false;state.spawnWanted=false;
+      $('autoFeed').checked=false;$('autoSplit').checked=false;feeding=false;state.spawnWanted=false;
       state.bots.forEach(b=>{clearTimeout(b.respawnTimer);b.respawnTimer=null;});
       log('Auto Spawn + Feed off. FOLLOW remains available.');return;
     }
-    $('target').value='mouse';state.target=null;$('follow').checked=true;$('autoFeed').checked=true;
+    $('target').value='mouse';state.target=null;$('follow').checked=true;$('autoFeed').checked=true;$('autoSplit').checked=true;
     if(!state.bots.some(b=>b.worker||b.status==='Queued'))$('connect').onclick();
     if(state.paused){state.paused=false;$('pause').textContent='Ⅱ Pause';}
     state.bots.forEach(spawnBot);render();
     log('Auto Spawn + Feed on: bots follow and feed toward the mouse when your player is alive.');
   };
+  $('autoSplit').onchange=()=>{if($('autoSplit').checked){$('target').value='mouse';$('follow').checked=true;state.bots.forEach(autoSplit);}};
   $('stop').onclick=()=>stop();
   $('pause').onclick=()=>{feeding=false;state.paused=!state.paused;$('pause').textContent=state.paused?'▶ Resume':'Ⅱ Pause';log(state.paused?'Paused controls; connections remain open.':'Controls resumed.');render();};
   $('collapse').onclick=()=>{const main=root.querySelector('main');main.hidden=!main.hidden;$('collapse').textContent=main.hidden?'+':'−';};
@@ -156,7 +165,7 @@
     const point=target();
     $('targetStatus').textContent=point?('Target: '+Math.round(point.x)+', '+Math.round(point.y)):'Waiting for your player position — enter PLAY and update the hosted files.';
     if((feeding||($('autoFeed').checked&&point))&&!state.paused&&state.bots.some(b=>b.ready&&b.alive.length))action('feed');
-    state.bots.forEach(b=>{if(!b.worker||!b.ready)return;if(ticks%10===0)b.worker.postMessage({type:'ping'});
+    state.bots.forEach(b=>{if(!b.worker||!b.ready)return;autoSplit(b);if(ticks%10===0)b.worker.postMessage({type:'ping'});
       if(!state.paused&&$('auto').checked)spawnBot(b);
       if(!state.paused&&$('follow').checked&&point)b.worker.postMessage({type:'move',...point});});
   },100);

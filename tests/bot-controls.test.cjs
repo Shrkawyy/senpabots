@@ -1,15 +1,16 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8');
 function panel(){
- const ids={},events={},timers=new Map(),intervals=[],workers=[];let n=0,point={x:900,y:1100};
+ const ids={},events={},timers=new Map(),intervals=[],workers=[];let now=10000;class Clock extends Date {static now(){return now;}}
+ let n=0,point={x:900,y:1100};
  function el(){return {style:{},value:'',tagName:'DIV',hidden:false,setAttribute(){},appendChild(){},addEventListener(){},replaceChildren(...children){this.children=children;}};}
  const root={getElementById:id=>ids[id],querySelector:()=>el(),querySelectorAll:()=>[],addEventListener(){},set innerHTML(s){for(const m of s.matchAll(/<(input|select|[a-z]+)\b[^>]*\bid="([^"]+)"[^>]*>/gi)){const e=el();e.value=(m[0].match(/value="([^"]*)"/)||[])[1]||'';e.checked=/\bchecked\b/.test(m[0]);ids[m[2]]=e;}ids.target.value='player';}};
  const document={baseURI:'https://senpa.io/web/',hidden:false,body:{appendChild(){}},createElement(){const e=el();e.attachShadow=()=>root;return e;},getElementById:()=>({value:'server'}),addEventListener(){}};
- const c={document,URL,console,Date,Number,navigator:{},setTimeout(fn,ms){const id=++n;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(fn){intervals.push(fn);return intervals.length;},clearInterval(){},addEventListener(type,fn){(events[type]??=[]).push(fn);},ONYXServers:{find:()=>({host:'eu1.senpa.io:7112',mode_name:'Mega'})},ONYXFfaAdapter:{wsUrl:()=> 'wss://eu1.senpa.io:7112?po=senpa.io',readJwt:()=> 'null'},ONYXBotGame:{target:()=>point,tag:()=> 'Crew'},ONYXCreateBotCodec(){const w={sent:[],postMessage(m){this.sent.push(m);},terminate(){this.closed=true;},isAttached:()=>true};workers.push(w);return w;}};c.window=c;
+ const c={document,URL,console,Date:Clock,Number,navigator:{},setTimeout(fn,ms){const id=++n;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(fn){intervals.push(fn);return intervals.length;},clearInterval(){},addEventListener(type,fn){(events[type]??=[]).push(fn);},ONYXServers:{find:()=>({host:'eu1.senpa.io:7112',mode_name:'Mega'})},ONYXFfaAdapter:{wsUrl:()=> 'wss://eu1.senpa.io:7112?po=senpa.io',readJwt:()=> 'null'},ONYXBotGame:{target:()=>point,tag:()=> 'Crew'},ONYXCreateBotCodec(){const w={sent:[],postMessage(m){this.sent.push(m);},terminate(){this.closed=true;},isAttached:()=>true};workers.push(w);return w;}};c.window=c;
  vm.runInNewContext(read('onyx-bots.js'),c);
  function start(slots=1){const [id,t]=[...timers].sort((a,b)=>a[1].ms-b[1].ms)[0];timers.delete(id);t.fn();const w=workers.at(-1);for(const data of [{type:'codec-ready'},{type:'ready',slots,border:20000}])w.onmessage({data});return w;}
  function key(type,code,tagName='BODY'){const e={code,composedPath:()=>[{tagName}],preventDefault(){},stopImmediatePropagation(){}};(events[type]||[]).forEach(fn=>fn(e));}
- return {ids,timers,workers,start,key,events,intervals,setPoint:v=>point=v};
+ return {advance:ms=>now+=ms,ids,timers,workers,start,key,events,intervals,setPoint:v=>point=v};
 }
 test('100 bot request is staggered and Stop cancels queued starts',()=>{const p=panel();p.ids.count.value='150';p.ids.connect.onclick();assert.equal(p.ids.count.value,100);assert.equal(p.timers.size,1);p.ids.stop.onclick();assert.equal(p.timers.size,0);assert.equal(p.workers.length,0);});
 test('spawn targets active player, passes TAG, keyboard split and held feed stop on release',()=>{
@@ -69,4 +70,23 @@ test('Auto Spawn checkbox connects once and enables mouse follow and feed; disab
  const f=w.sent.findLastIndex(m=>m.type==='feed');assert.equal(w.sent[f-1].type,'move');assert.equal(w.sent[f-1].x,400);
  const feeds=w.sent.filter(m=>m.type==='feed').length;p.setPoint(null);p.intervals[0]();assert.equal(w.sent.filter(m=>m.type==='feed').length,feeds);
  p.ids.auto.checked=false;p.ids.auto.onchange();p.setPoint({x:1,y:2});p.intervals[0]();assert.equal(w.sent.filter(m=>m.type==='feed').length,feeds);assert.equal(p.ids.autoFeed.checked,false);
+});
+
+test('auto split aims on spawn, respects cooldown and pause, and manual split survives disabling auto',()=>{
+ const p=panel();p.ids.count.value='1';p.ids.auto.checked=true;p.ids.auto.onchange();const w=p.start();
+ const splits=()=>w.sent.filter(m=>m.type==='split').length;
+ assert.equal(splits(),0);w.onmessage({data:{type:'world',alive:[0],died:[]}});assert.equal(splits(),1);
+ const i=w.sent.findIndex(m=>m.type==='split');assert.equal(w.sent[i-1].type,'move');
+ p.intervals[0]();assert.equal(splits(),1);p.advance(1000);p.intervals[0]();assert.equal(splits(),2);
+ p.ids.pause.onclick();p.advance(1000);p.intervals[0]();assert.equal(splits(),2);p.ids.pause.onclick();
+ p.setPoint(null);p.intervals[0]();assert.equal(splits(),2);p.setPoint({x:12,y:34});
+ p.ids.auto.checked=false;p.ids.auto.onchange();p.intervals[0]();assert.equal(splits(),2);
+ p.key('keydown','KeyX');assert.equal(splits(),3);
+});
+test('hosted client rejects unmodified old Senpa loaders and accepts new generation',()=>{
+ const s=read('deo.onyx.beautified.js').split('/* End loader gate */')[0];
+ const c={window:{location:{hostname:'senpa.io'}},document:{body:null}};
+ assert.throws(()=>vm.runInNewContext(s,c),/outdated/);c.window.__ONYX_LOADER_GENERATION__=2;
+ assert.doesNotThrow(()=>vm.runInNewContext(s,c));
+ assert.ok(read('kateronyx.user.js').includes('window.__ONYX_LOADER_GENERATION__=2;'));
 });
