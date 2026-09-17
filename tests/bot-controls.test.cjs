@@ -76,7 +76,7 @@ test('auto split aims on spawn, respects cooldown and pause, and manual split su
  const p=panel();p.ids.count.value='1';p.ids.auto.checked=true;p.ids.auto.onchange();const w=p.start();
  const splits=()=>w.sent.filter(m=>m.type==='split').length;
  assert.equal(splits(),0);w.onmessage({data:{type:'world',alive:[0],died:[]}});assert.equal(splits(),1);
- const i=w.sent.findIndex(m=>m.type==='split');assert.equal(w.sent[i-1].type,'move');
+ const i=w.sent.findIndex(m=>m.type==='split');assert.equal(w.sent[i-1].type,'move');assert.equal(w.sent[i].count,6);
  p.intervals[0]();assert.equal(splits(),1);p.advance(1000);p.intervals[0]();assert.equal(splits(),2);
  p.ids.pause.onclick();p.advance(1000);p.intervals[0]();assert.equal(splits(),2);p.ids.pause.onclick();
  p.setPoint(null);p.intervals[0]();assert.equal(splits(),2);p.setPoint({x:12,y:34});

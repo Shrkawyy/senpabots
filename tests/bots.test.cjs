@@ -51,3 +51,10 @@ test('UInt16 server-message length does not shift UTF16 characters',()=>{
  const {p,events}=setup();const text=stringPacket(41,'Only 2 hats',true),b=new Uint8Array(text.length+1);
  b[0]=41;b[1]=1;b.set(text.slice(1),2);p.receive(b.buffer);assert.equal(events.at(-1).msg,'Server message (1): Only 2 hats');
 });
+
+test('x64 uses six split levels on each live dual slot, capped and defaulting to single split',()=>{
+ const {p,sent}=setup([101,102],2);p.receive(world([[1,101],[2,102]]));
+ p.action(22,6);assert.deepEqual(sent.slice(-2),[[22,0,6],[22,1,6]]);
+ p.action(22,64);assert.deepEqual(sent.slice(-2),[[22,0,6],[22,1,6]]);
+ p.action(22);assert.deepEqual(sent.slice(-2),[[22,0,1],[22,1,1]]);
+});
