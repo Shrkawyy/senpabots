@@ -90,3 +90,22 @@ test('hosted client rejects unmodified old Senpa loaders and accepts new generat
  assert.doesNotThrow(()=>vm.runInNewContext(s,c));
  assert.ok(read('kateronyx.user.js').includes('window.__ONYX_LOADER_GENERATION__=2;'));
 });
+
+test('Connect appends to existing bots and to pending work without duplicate launches',()=>{
+ const p=panel();p.ids.count.value='2';p.ids.connect.onclick();p.ids.count.value='3';p.ids.connect.onclick();
+ assert.equal(p.timers.size,1);const first=p.start(2);assert.equal(first.sent[0].slotLimit,2);
+ const second=p.start(2);assert.equal(second.sent[0].slotLimit,3);p.start(1);
+ assert.equal(p.workers.length,3);assert.equal(first.closed,undefined);
+ p.ids.count.value='2';p.ids.connect.onclick();p.start(2);
+ assert.equal(p.workers.length,4);assert.equal(first.closed,undefined);
+ assert.match(p.ids.counts.textContent,/7 ready/);p.ids.stop.onclick();assert.ok(p.workers.every(w=>w.closed));
+});
+test('repeated Connect caps both ready and waiting players at 100',()=>{
+ const p=panel();p.ids.count.value='98';p.ids.connect.onclick();p.start(2);
+ p.ids.count.value='10';p.ids.connect.onclick();p.ids.connect.onclick();
+ assert.equal(p.ids.connect.disabled,true);
+ for(let i=0;i<49;i++)p.start(2);
+ assert.equal(p.workers.length,50);assert.equal(p.timers.size,0);assert.match(p.ids.counts.textContent,/100 ready/);
+ const w=p.workers[0];w.onmessage({data:{type:'close',code:1000}});assert.equal(p.ids.connect.disabled,false);
+ p.ids.connect.onclick();p.start(2);assert.equal(p.workers.length,51);assert.match(p.ids.counts.textContent,/100 ready/);
+});

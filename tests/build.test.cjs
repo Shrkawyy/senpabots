@@ -9,6 +9,6 @@ test('rebuilding changes only the addon version and preserves CDN dependency ver
   assert(cdn(before).includes('https://unpkg.com/tippy.js@2.0.6/dist/tippy.all.min.js'));
   execFileSync(process.execPath,[path.join(tmp,'scripts/build-bots.cjs')]);
   const after=fs.readFileSync(path.join(tmp,'kateronyx.user.js'),'utf8');
-  assert.equal(cdn(after),cdn(before));assert.match(after,/\/\/ @version\s+2\.2\.1/);assert.match(after,/var VERSION = '2\.2\.1';/);
+  assert.equal(cdn(after),cdn(before));assert.match(after,/\/\/ @version\s+2\.2\.2/);assert.match(after,/var VERSION = '2\.2\.2';/);
  } finally {fs.rmSync(tmp,{recursive:true,force:true});}
 });

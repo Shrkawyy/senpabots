@@ -9,10 +9,10 @@
   const root = host.attachShadow({mode:'open'});
   root.innerHTML = `<style>
   :host{font:12px Arial,sans-serif;color:#c8cbce}*{box-sizing:border-box}button,input,select{font:inherit;color:inherit;background:#101214;border:1px solid #303438;border-radius:4px;min-height:34px;padding:8px}button{cursor:pointer}button:hover{background:#252a30;border-color:#6a7480}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #7dd3fc}button:disabled{opacity:.4;cursor:default}section{width:380px;max-width:calc(100vw - 24px);background:#0a0c0eed;border:1px solid #303438;border-radius:8px;box-shadow:0 12px 45px #0009;overflow:hidden}header{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #272b30}header strong{flex:1;font-size:13px}header small{color:#929ba4;font-size:10px}main{padding:12px;max-height:calc(100vh - 155px);overflow:auto}nav,.row,.actions{display:flex;gap:8px;margin-bottom:12px}nav button{flex:1;font-size:10px}nav button[aria-selected=true]{border-color:#8294a8}label{display:block;color:#909aa5;font-size:10px;line-height:1.5}label input:not([type=checkbox]),label select{width:100%;display:block;margin-top:4px}label.grow{flex:1}.count{width:72px}.checks{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}.checks label{display:flex;align-items:center;gap:5px}input[type=checkbox]{min-height:0;accent-color:#b1c6d9}.actions button{flex:1}footer{border:1px solid #282c30;border-radius:4px;padding:9px;color:#93a3b4;overflow-wrap:anywhere}.hint{font-size:11px;color:#9ba6b1;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px monospace;max-height:350px;overflow:auto}.bot{padding:10px 0;border-bottom:1px solid #292e33} [hidden]{display:none!important}
-  </style><section><header><strong>🤖 GAME BOTS · 2.2.1</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
+  </style><section><header><strong>🤖 GAME BOTS · 2.2.2</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
   <nav><button data-tab="controls" aria-selected="true">CONTROLS</button><button data-tab="active">ACTIVE BOTS</button><button data-tab="console">CONSOLE</button></nav>
-  <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
-  <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Count = total players, shared across server connections.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
+  <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">ADD COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
+  <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Each Connect adds COUNT players. Maximum 100 connected or waiting.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
   <div class="row"><label class="grow">TARGET<select id="target"><option value="mouse">Mouse · الماوس</option><option value="player">Follow me · اتجمع عندي</option><option value="hold">Hold current point</option></select></label></div>
   <p class="hint">Z: Spawn · X: Split ×64 · hold C: Mass<br>Enable AUTO SPAWN + FEED to connect, spawn and feed toward your mouse.<br>The server chooses initial spawn locations; bots move toward the target afterward.<br>100 maximum requested; connections start one per second.</p><p id="targetStatus" class="hint"></p><label>PANEL OPACITY<input id="opacity" type="range" min="35" max="100" value="100"></label>
   <div class="row"><label class="grow">SPAWN KEY<input id="spawnKey" readonly placeholder="Click to bind"></label><label class="grow">SPLIT KEY<input id="splitKey" readonly placeholder="Click to bind"></label><label class="grow">MASS KEY<input id="feedKey" readonly placeholder="Click to bind"></label></div>
@@ -47,13 +47,15 @@
     if(!aim(b))return;
     b.worker.postMessage({type:'split',count:6});b.lastAutoSplit=now;
   }
+  function reservedCount() {return state.remaining+state.bots.filter(b=>b.worker&&b.ready).reduce((n,b)=>n+b.slots,0);}
   function render() {
-    $('counts').textContent = `${state.bots.reduce((n,b)=>n+b.slots,0)} allocated | ${state.bots.filter(b=>b.ready).reduce((n,b)=>n+b.slots,0)} ready | ${state.bots.reduce((n,b)=>n+b.alive.length,0)} alive`;
+    $('counts').textContent = `${state.bots.reduce((n,b)=>n+b.slots,0)} allocated | ${state.bots.filter(b=>b.ready).reduce((n,b)=>n+b.slots,0)} ready | ${state.bots.reduce((n,b)=>n+b.alive.length,0)} alive | ${state.remaining} waiting`;
     $('active').replaceChildren(...state.bots.map(b => { const el = document.createElement('div'); el.className='bot'; el.textContent=`${b.name} · ${b.status} · ${b.alive.length}/${b.slots} slots alive`; return el; }));
     for (const id of ['spawn','split','feed']) $(id).disabled = state.paused || !state.bots.some(b=>b.ready);
-    $('connect').disabled = state.bots.some(b=>b.worker||b.status==='Queued');
+    $('connect').disabled = reservedCount()>=100;
   }
   function dispose(b, reason) {
+    if(!b.ready&&(b.worker||b.status==='Queued')){state.remaining=0;}
     clearTimeout(b.timer); clearTimeout(b.respawnTimer); clearTimeout(b.spawnTimer);
     if (b.worker) { b.worker.postMessage({type:'close'}); b.worker.terminate(); b.worker=null; }
     b.ready=false; b.alive=[]; b.status=reason; render();
@@ -101,16 +103,22 @@
     }; render();
   }
   function queueNext(entry,generation,delay=1000) {
-    if(generation!==state.generation||state.remaining<=0)return;
+    if(generation!==state.generation||state.remaining<=0||state.bots.some(b=>b.status==='Queued'||(b.worker&&!b.ready)))return;
     const first=state.bots.reduce((n,b)=>n+b.slots,0)+1;
     const b={name:($('name').value.trim()||'Bot')+' '+first,requestedSlots:state.remaining,ready:false,slots:0,alive:[],status:'Queued',worker:null};
     state.bots.push(b);b.timer=setTimeout(()=>launch(b,entry,generation),delay);
   }
   $('connect').onclick=()=>{
     const entry=selected(); if(!entry || !window.ONYXFfaAdapter) return log('Select a supported game server first.');
-    stop('Starting '+entry.mode_name); state.bots=[];state.host=entry.host;state.target=null;
+    const active=state.bots.some(b=>b.worker||b.status==='Queued');
+    if(active&&state.host!==entry.host)return log('Server changed. Stop All before adding on the new server.');
     const count=Math.min(100,Math.max(1,Math.trunc(Number($('count').value)||1)));$('count').value=count;
-    state.remaining=count;queueNext(entry,state.generation,0);
+    const added=Math.min(count,Math.max(0,100-reservedCount()));
+    if(!added)return log('Maximum 100 players connected or waiting.');
+    if(!active){state.host=entry.host;state.target=null;}
+    state.remaining+=added;queueNext(entry,state.generation,0);
+    log('Added '+added+' players to the queue'+(added<count?' (100 total limit).':'.'));
+
     render();
   };
   for(const id of ['spawn','split','feed']) $(id).onclick=()=>action(id);
