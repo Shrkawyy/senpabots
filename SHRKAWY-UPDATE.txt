@@ -1,0 +1,18 @@
+Shrkawy — Senpa update 2.3.1
+
+Installation:
+Upload all contents of senpabots-main to the SAME hosting URL used by your existing loader.
+Update Tampermonkey using kateronyx.user.js, disable duplicate versions, and reload Senpa.
+The loader still requires your hosted client files; installing the userscript alone does not update the engine.
+
+P: open/close English roster. Right to left: Player | Status | Tag.
+Only server-provided clients and visible ownership are used. Unknown is intentional when no confirmed status is available. This cannot reveal spectators the server does not report.
+Click a visible player name to watch after your own game has ended.
+
+Bots: enable Bot target box. Hold right mouse on the game canvas and move; release to lock the point. Connect, then press Spawn. Existing bots receive movement commands toward the selected point. The box tracks world coordinates as the camera moves.
+Enabling the box turns off automatic spawn/feed/split and respawn. Follow is enabled. Player connections are not replaced.
+The box is a MOVEMENT TARGET, not a guaranteed spawn location: the shipped spawn packet has no coordinates. Senpa chooses initial spawn positions.
+
+Validation:
+Local roster, coordinate facade, codec and target-box tests run. No authenticated live Senpa session was available, so live server behavior is not verified.
+The original archive has 13 failing legacy tests; the same 13 fail after these changes. The shipped codec is preserved because its generator sources are older than the generated release.
