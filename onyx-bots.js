@@ -14,7 +14,7 @@
   <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">ADD COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
   <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Each Connect adds COUNT players. Maximum 100 connected or waiting.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
   <div class="row"><label class="grow">TARGET<select id="target"><option value="mouse">Mouse · الماوس</option><option value="player">Follow me · اتجمع عندي</option><option value="hold">Hold current point</option></select></label></div>
-  <button id="box" aria-pressed="false">Bot target box: OFF</button><p class="hint">Enable the box, hold right-click on the game to move it, then release to lock the target. Press Spawn separately. This is a movement target; the server chooses the spawn location.</p>
+  <button id="box" aria-pressed="false">Bot target box: OFF</button><p class="hint">Enable the box, hold right-click on the game to move it, then release to hide the box and lock the target. Press Spawn separately. This is a movement target; the server chooses the spawn location.</p>
   <p class="hint">Z: Spawn · X: Split ×64 · hold C: Mass<br>Enable AUTO SPAWN + FEED to connect, spawn and feed toward your mouse.<br>The server chooses initial spawn locations; bots move toward the target afterward.<br>100 maximum requested; connections start one per second.</p><p id="targetStatus" class="hint"></p><label>PANEL OPACITY<input id="opacity" type="range" min="35" max="100" value="100"></label>
   <div class="row"><label class="grow">SPAWN KEY<input id="spawnKey" readonly placeholder="Click to bind"></label><label class="grow">SPLIT KEY<input id="splitKey" readonly placeholder="Click to bind"></label><label class="grow">MASS KEY<input id="feedKey" readonly placeholder="Click to bind"></label></div>
   <div class="actions"><button id="connect">⚡ Connect</button><button id="spawn">▶ Spawn</button><button id="split">✂ Split ×64</button><button id="feed">● Mass</button></div>
@@ -283,7 +283,7 @@
   Object.assign(marker.style,{position:'fixed',width:'64px',height:'64px',border:'2px solid white',boxShadow:'0 0 8px #000',transform:'translate(-50%,-50%)',pointerEvents:'none',zIndex:'99999',color:'white',textAlign:'center',font:'11px Arial'});
   marker.textContent='BOT TARGET';document.body.appendChild(marker);
   function drawBox(){
-    const api=window.ONYXBotGame,point=boxEnabled&&state.target&&api&&api.targetScreen&&api.targetScreen(state.target);
+    const api=window.ONYXBotGame,point=boxEnabled&&boxDragging&&state.target&&api&&api.targetScreen&&api.targetScreen(state.target);
     marker.hidden=!point;
     if(point){marker.style.left=point.x+'px';marker.style.top=point.y+'px';}
   }
@@ -303,11 +303,11 @@
   };
   function gameCanvas(e){return e.target&&e.target.tagName==='CANVAS';}
   window.addEventListener('mousedown',e=>{if(!boxEnabled||e.button!==2||!gameCanvas(e))return;boxDragging=true;e.preventDefault();e.stopImmediatePropagation();setBoxPoint(e);},true);
-  window.addEventListener('mousemove',e=>{if(!boxDragging)return;if(!(e.buttons&2)){boxDragging=false;return;}setBoxPoint(e);},true);
-  window.addEventListener('mouseup',e=>{if(!boxDragging||e.button!==2)return;setBoxPoint(e);boxDragging=false;e.preventDefault();e.stopImmediatePropagation();},true);
+  window.addEventListener('mousemove',e=>{if(!boxDragging)return;if(!(e.buttons&2)){boxDragging=false;drawBox();return;}setBoxPoint(e);},true);
+  window.addEventListener('mouseup',e=>{if(!boxDragging||e.button!==2)return;setBoxPoint(e);boxDragging=false;drawBox();e.preventDefault();e.stopImmediatePropagation();},true);
   window.addEventListener('contextmenu',e=>{if(boxEnabled&&gameCanvas(e)){e.preventDefault();e.stopImmediatePropagation();}},true);
-  window.addEventListener('blur',()=>{boxDragging=false;});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)boxDragging=false;});
+  window.addEventListener('blur',()=>{boxDragging=false;drawBox();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){boxDragging=false;drawBox();}});
   let ticks=0;
   const timer=setInterval(()=>{
     const entry=selected();$('server').value=entry?entry.mode_name+' · '+entry.host:'No supported server';

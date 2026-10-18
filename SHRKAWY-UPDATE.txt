@@ -1,3 +1,5 @@
+Update 2.3.3: Hide target box immediately on right-button release, lost focus, or tab hide. Preserve the last world target and send movement after confirmed spawn. Initial and subsequent spawn positions remain server-controlled.
+
 Update 2.3.2: Restores account module in the embedded Tampermonkey loader. 30 bot slots: 1-15 Discord, 16-30 Facebook. Each slot uses official OAuth and API verification. Tokens remain in memory until reload. Live login not tested.
 
 Shrkawy — Senpa update 2.3.1
