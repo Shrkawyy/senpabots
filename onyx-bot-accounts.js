@@ -7,9 +7,9 @@
   'use strict';
   if (global.ONYXBotAccounts) return;
   var AUTH_ORIGIN = 'https://api.senpa.io';
-  var SLOT_COUNT = 9; // 1 game login (existing UI) + 9 bot logins = 10 total
+  var SLOT_COUNT = 30; // 15 Discord + 15 Facebook bot-only sessions
   var slots = Array.from({length:SLOT_COUNT}, function(_,i) {
-    return {id:i+1, token:null, profile:null, status:'Not signed in', code:null};
+    return {id:i+1, provider:i<15?'discord':'facebook', token:null, profile:null, status:'Not signed in', code:null};
   });
   var pending = null;
   var handledPopups = new WeakSet();
@@ -33,7 +33,7 @@
     return 'HTTP ' + status + ' — account verification failed';
   }
   function publicSlot(slot) {
-    return {id:slot.id, status:slot.status, code:slot.code,
+    return {id:slot.id, provider:slot.provider, status:slot.status, code:slot.code,
       name:slot.profile && (slot.profile.username || slot.profile.nickname || slot.profile.name || slot.profile.id) || '',
       verified:!!slot.token && jwtAlive(slot.token)};
   }
@@ -88,7 +88,7 @@
       notify(slot,'AUTH_BUSY','Finish or cancel the other bot-account login first.');
       return false;
     }
-    if (provider!=='facebook' && provider!=='discord') return false;
+    if (provider!==slot.provider) return false;
     var popup=global.open(AUTH_ORIGIN+'/auth/'+provider,
       'OnyxBotAccountLogin', 'toolbar=no,menubar=no,width=600,height=700,top=100,left=100');
     if (!popup) { notify(slot,'POPUP_BLOCKED','Allow popup windows for this website.');return false; }

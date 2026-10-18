@@ -20,7 +20,7 @@
   <div class="actions"><button id="connect">⚡ Connect</button><button id="spawn">▶ Spawn</button><button id="split">✂ Split ×64</button><button id="feed">● Mass</button></div>
   <div class="checks"><label><input id="auto" type="checkbox">AUTO SPAWN + FEED</label><label><input id="autoSplit" type="checkbox">AUTO SPLIT ×64 · 1s</label><label><input id="autoFeed" type="checkbox">AUTO FEED</label><label><input id="respawn" type="checkbox">RESPAWN</label><label><input id="follow" type="checkbox" checked>FOLLOW</label></div>
   <div class="actions"><button id="pause">Ⅱ Pause</button><button id="stop">■ Stop All</button></div></div>
-  <div id="accounts" hidden><strong>Bot account sessions (9 slots)</strong>
+  <div id="accounts" hidden><strong>Bot accounts · 15 Discord + 15 Facebook</strong>
   <p class="hint warning">Your existing SENPA AUTH remains the main player login. These bot logins do not change the main token. Browser cookies are shared and Senpa may invalidate the previous login or reject extra connections. Server limits still apply.</p>
   <div class="actions"><button id="cancelAuth">Cancel pending login</button></div><div id="accountRows"></div></div>
   <div id="active" hidden></div><div id="console" hidden>
@@ -202,8 +202,8 @@
       if(status) status.textContent=slot.status+' · '+(slot.name||'No account profile')+
         (current.length?' · '+current.map(b=>b.status).join(', '):'');
       $('account-connect-'+id).disabled=!slot.verified||current.length>0;
-      $('account-facebook-'+id).disabled=current.length>0;
-      $('account-discord-'+id).disabled=current.length>0;
+      const loginButton=$('account-'+slot.provider+'-'+id);
+      if(loginButton)loginButton.disabled=current.length>0;
       $('account-disconnect-'+id).disabled=current.length===0;
     }
   }
@@ -233,11 +233,11 @@
     const list=$('accountRows');
     for(let id=1;id<=accounts.count;id++) {
       const wrap=document.createElement('div');wrap.className='account-row';
-      const head=document.createElement('strong');head.textContent='Bot Account '+id;wrap.appendChild(head);
+      const head=document.createElement('strong');head.textContent=(id<=15?'Discord '+id:'Facebook '+(id-15));wrap.appendChild(head);
       const status=document.createElement('div');status.className='account-status';status.id='account-status-'+id;
       wrap.appendChild(status);
       const actions=document.createElement('div');actions.className='account-actions';
-      const buttons=[['Facebook','facebook'],['Discord','discord'],['Connect','connect'],['Disconnect','disconnect'],['Logout','logout']];
+      const buttons=[[id<=15?'Login with Discord':'Login with Facebook',id<=15?'discord':'facebook'],['Connect','connect'],['Disconnect','disconnect'],['Logout','logout']];
       for(const [label,command] of buttons) {
         const button=document.createElement('button');button.textContent=label;
         button.id='account-'+command+'-'+id;
