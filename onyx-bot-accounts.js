@@ -1,20 +1,28 @@
 /* Bot-only OAuth session manager. Does not modify the game's primary login.
  * One browser profile shares provider cookies; separate tokens do NOT imply
  * server permission for concurrent logins or connections.
- * Bot tokens are held in memory for this tab and are never exported to logs.
+ * Bot sessions are saved on this browser/device and are never exported to logs.
  */
 (function (global) {
   'use strict';
   if (global.ONYXBotAccounts) return;
   var AUTH_ORIGIN = 'https://api.senpa.io';
-  var SLOT_COUNT = 30; // 15 Discord + 15 Facebook bot-only sessions
+  var SLOT_COUNT = 30; // 30 Facebook bot-only sessions
   var slots = Array.from({length:SLOT_COUNT}, function(_,i) {
-    return {id:i+1, provider:i<15?'discord':'facebook', token:null, profile:null, status:'Not signed in', code:null};
+    return {id:i+1, provider:'facebook', token:null, profile:null, status:'Not signed in', code:null, verified:false, revision:0, wanted:false, host:'', spawn:false, banHost:''};
   });
   var pending = null;
   var handledPopups = new WeakSet();
   var listeners = [];
+  var STORAGE_KEY='onyx:eu-facebook-bots:v1';
+  var storageError=false;
+  function save() {
+    try { global.localStorage.setItem(STORAGE_KEY,JSON.stringify(slots.map(function(s){
+      return {id:s.id,provider:'facebook',token:s.token,profile:s.profile,wanted:s.wanted,host:s.host,spawn:s.spawn,banHost:s.banHost};
+    }))); storageError=false; } catch (_) { storageError=true; }
+  }
   function notify(slot, event, detail) {
+    save();
     listeners.forEach(function(cb) { try { cb(slot.id, event, detail || ''); } catch (_) {} });
   }
   function jwtAlive(token) {
@@ -35,35 +43,38 @@
   function publicSlot(slot) {
     return {id:slot.id, provider:slot.provider, status:slot.status, code:slot.code,
       name:slot.profile && (slot.profile.username || slot.profile.nickname || slot.profile.name || slot.profile.id) || '',
-      verified:!!slot.token && jwtAlive(slot.token)};
+      wanted:slot.wanted, host:slot.host, spawn:slot.spawn, banHost:slot.banHost, storageError:storageError, verified:slot.verified && !!slot.token && jwtAlive(slot.token)};
   }
   function getToken(id) {
     var slot=slots[Number(id)-1];
-    if (!slot || !slot.token) return null;
+    if (!slot || !slot.token || !slot.verified) return null;
     if (!jwtAlive(slot.token)) {
-      slot.token=null; slot.status='Session expired — sign in again'; slot.code='JWT_EXPIRED';
+      slot.token=null; slot.verified=false; slot.wanted=false; slot.status='Session expired — sign in again'; slot.code='JWT_EXPIRED';
       notify(slot,'AUTH_EXPIRED',slot.status);
       return null;
     }
     return slot.token;
   }
   async function verifyAndStore(slot,token) {
+    var revision=++slot.revision;slot.verified=false;
     if (!jwtAlive(token)) {
-      slot.status='Invalid or expired JWT';slot.code='INVALID_TOKEN';notify(slot,'AUTH_FAILED',slot.status);
+      slot.token=null;slot.wanted=false;slot.status='Invalid or expired JWT';slot.code='INVALID_TOKEN';notify(slot,'AUTH_FAILED',slot.status);
       return;
     }
     slot.status='Checking with Senpa API…';slot.code=null;notify(slot,'AUTH_PENDING',slot.status);
     try {
       var result=await fetch(AUTH_ORIGIN+'/account/', {
-        method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store'
+        signal:global.AbortSignal&&global.AbortSignal.timeout?global.AbortSignal.timeout(8000):undefined,method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store'
       });
+      if(revision!==slot.revision)return;
       if (!result.ok) {
-        slot.token=null;slot.profile=null;slot.code=result.status;
+        if(result.status===401){slot.token=null;slot.wanted=false;}slot.code=result.status;
         slot.status=explainStatus(result.status);notify(slot,'AUTH_REJECTED',slot.status);
         return;
       }
       var account=await result.json();
-      slot.token=token;slot.profile=account;slot.code=200;slot.status='Verified by Senpa';
+      if(revision!==slot.revision)return;
+      slot.verified=true;slot.token=token;slot.profile=account;slot.code=200;slot.status='Verified by Senpa';
       notify(slot,'AUTH_VERIFIED',slot.status);
       // A shared provider cookie or server-wide session policy can invalidate primary.
       var primary=global.ONYXAuth && global.ONYXAuth.getSenpaToken && global.ONYXAuth.getSenpaToken();
@@ -76,7 +87,8 @@
         } catch (_) { notify(slot,'PRIMARY_SESSION_CHECK', 'Primary session could not be verified (network/CORS)'); }
       }
     } catch (err) {
-      slot.token=null;slot.profile=null;slot.code='NETWORK';
+      if(revision!==slot.revision)return;
+      slot.code='NETWORK';
       slot.status='Verification request failed (network/CORS).';
       notify(slot,'AUTH_NETWORK_ERROR',slot.status);
     }
@@ -93,7 +105,7 @@
       'OnyxBotAccountLogin', 'toolbar=no,menubar=no,width=600,height=700,top=100,left=100');
     if (!popup) { notify(slot,'POPUP_BLOCKED','Allow popup windows for this website.');return false; }
     pending={slot:slot,popup:popup};
-    slot.token=null;slot.profile=null; // A new login must be verified independently.
+    slot.revision++;slot.verified=false;slot.wanted=false;slot.banHost='';slot.token=null;slot.profile=null; // A new login must be verified independently.
     slot.status='Complete official '+provider+' login in popup…';slot.code=null;
     notify(slot,'AUTH_STARTED',slot.status);
     try { popup.focus(); } catch (_) {}
@@ -125,7 +137,7 @@
   function clear(id) {
     var slot=slots[Number(id)-1];if(!slot)return;
     if(pending && pending.slot===slot){try{pending.popup.close();}catch(_){}pending=null;}
-    slot.token=null;slot.profile=null;slot.status='Signed out (bot slot only)';slot.code=null;
+    slot.revision++;slot.verified=false;slot.wanted=false;slot.banHost='';slot.token=null;slot.profile=null;slot.status='Signed out (bot slot only)';slot.code=null;
     notify(slot,'AUTH_LOGOUT',slot.status);
   }
   function cancelPending(){
@@ -134,7 +146,21 @@
     try {pending.popup.close();}catch(_){}
     pending=null;slot.status='Login cancelled';notify(slot,'AUTH_CANCELLED',slot.status);
   }
-  global.ONYXBotAccounts={count:SLOT_COUNT,login:login,getToken:getToken,
+  // Restore only Facebook slots from our own versioned store, never player/multi storage.
+  try {
+    var saved=JSON.parse(global.localStorage.getItem(STORAGE_KEY)||'[]');
+    if(Array.isArray(saved))saved.forEach(function(row){
+      var slot=slots[Number(row.id)-1];if(!slot||row.provider!=='facebook')return;
+      if(jwtAlive(row.token)){slot.token=row.token;slot.profile=row.profile||null;slot.status='Saved — checking session';}
+      slot.host=typeof row.host==='string'?row.host:'';slot.banHost=typeof row.banHost==='string'?row.banHost:'';
+      slot.wanted=!!row.wanted&&!!slot.token;slot.spawn=!!row.spawn;
+    });
+  } catch (_) {}
+  var ready=(async function(){for(var slot of slots){if(slot.token)await verifyAndStore(slot,slot.token);}})();
+  global.ONYXBotAccounts={ready:ready,
+    setIntent:function(id,wanted,host,spawn){var s=slots[id-1];if(!s)return;s.wanted=!!wanted;if(host)s.host=host;if(spawn!==undefined)s.spawn=!!spawn;save();},
+    markBan:function(id,host){var s=slots[id-1];if(!s)return;s.banHost=host;s.wanted=false;notify(s,'BAN_CONFIRMED','Server explicitly reported banned');},
+count:SLOT_COUNT,login:login,getToken:getToken,
     getStatus:function(id){return slots[Number(id)-1]?publicSlot(slots[Number(id)-1]):null;},
     clear:clear,cancelPending:cancelPending,subscribe:function(callback){
       listeners.push(callback);return function(){listeners=listeners.filter(function(cb){return cb!==callback;});};
