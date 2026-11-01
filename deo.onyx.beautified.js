@@ -1,3 +1,89 @@
+/* ONYX official verification lifecycle v1 */
+(function (global) {
+  'use strict';
+  if (global.ONYXVerification) return;
+  var current = null, sequence = 0, epochs = {}, wrappedSC = null;
+  function now() { return performance.now(); }
+  function log(message) { console.info('[ONYX VERIFY]', message); }
+  function cancel(reason) {
+    if (!current) return;
+    current.valid = false;
+    if (current.widget !== null) {
+      try { global.turnstile.remove(current.widget); } catch (_) {}
+    }
+    current.hide();
+    log('request=' + current.id + ' cancelled=' + reason);
+    current = null;
+  }
+  function wrapConnection() {
+    var sc = global.SC;
+    if (!sc || wrappedSC === sc) return;
+    wrappedSC = sc;
+    ['init', 'onClose', 'onError'].forEach(function (key) {
+      var original = sc[key];
+      if (typeof original !== 'function') return;
+      sc[key] = function () {
+        var tab = (key === 'init' ? arguments[1] : arguments[0]) || 1;
+        epochs[tab] = (epochs[tab] || 0) + 1;
+        if (current && current.tab === tab) cancel('connection-' + key);
+        return original.apply(this, arguments);
+      };
+    });
+    var receive = sc.onMessage;
+    if (typeof receive === 'function') sc.onMessage = function (data, tab) {
+      var bytes = data instanceof DataView ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) :
+        ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) :
+        data instanceof ArrayBuffer ? new Uint8Array(data) : null;
+      if (bytes && bytes[0] === 41 && current && current.sent && current.tab === (tab || 1)) {
+        log('request=' + current.id + ' server-message-after-submit-ms=' + Math.round(now() - current.sentAt));
+      }
+      return receive.apply(this, arguments);
+    };
+  }
+  global.ONYXVerification = {
+    cancel: cancel,
+    show: function (options) {
+      wrapConnection();
+      cancel('new-challenge');
+      var job = {id:++sequence, tab:options.tab, epoch:epochs[options.tab] || 0,
+        started:now(), sent:false, valid:true, widget:null, hide:options.hide};
+      current = job;
+      function live() { return current === job && job.valid && !job.sent && job.epoch === (epochs[job.tab] || 0); }
+      options.show();
+      log('request=' + job.id + ' type=' + options.type + ' tab=' + job.tab + ' waiting-for-official-widget');
+      try {
+        job.widget = global.turnstile.render(options.container, {
+          sitekey:options.sitekey,
+          callback:function (token) {
+            if (!live()) { log('request=' + job.id + ' stale-or-duplicate-callback-ignored'); return; }
+            if (typeof token !== 'string' || !token) return;
+            job.sent = true;
+            job.sentAt = now();
+            log('request=' + job.id + ' widget-completed-ms=' + Math.round(job.sentAt - job.started) + ' submitting-once tab=' + job.tab);
+            try { options.send(options.type, token, job.tab); options.hide(); }
+            catch (error) { job.valid = false; log('request=' + job.id + ' send-failed; reconnect manually'); throw error; }
+          },
+          'expired-callback':function () {
+            if (!live()) return;
+            job.valid = false;
+            log('request=' + job.id + ' widget-expired; reconnect manually for a new challenge');
+          },
+          'error-callback':function (code) {
+            if (!live()) return;
+            job.valid = false;
+            log('request=' + job.id + ' widget-error=' + String(code) + '; reconnect manually');
+            return true;
+          }
+        });
+      } catch (error) {
+        job.valid = false;
+        log('request=' + job.id + ' widget-render-failed');
+        throw error;
+      }
+    }
+  };
+})(window);
+
 /* ONYX server-message decoder v1 */
 (function (global) {
   global.ONYXReadServerText = function (reader) {
@@ -6806,24 +6892,16 @@ var _0x33c02e = _0x400f;
                     return _0x137ffd()(_0x37d395, [{
                         'key': 'displayTurnstile',
                         'value': function (_0xba7045, _0x1aea49) {
-                            var _0x40e726 = _0x400f,
-                                _0xb868d6 = this;
-                            _0xb868d6['tab'] = _0x1aea49;
-                            const _0x1b9bf5 = document['getElementById'](_0x40e726(0x7ce));
-                            if (_0x1b9bf5 && typeof turnstile !== 'undefined') {
-                                this[_0x40e726(0x3ef)] && turnstile['reset'](this[_0x40e726(0x3ef)]);
-                                this[_0x40e726(0x619)][_0x40e726(0x318)](), this[_0x40e726(0x5a6)];
-                                if (!this[_0x40e726(0x5a6)]) {
-                                    var _0xc1bb1b = {
-                                        'sitekey': this[_0x40e726(0x90a)],
-                                        'callback': function (_0x598234) {
-                                            var _0x4e8b8b = _0x40e726;
-                                            _0x446f71[_0x4e8b8b(0x4bc)](_0xba7045, _0x598234, _0xb868d6[_0x4e8b8b(0x855)]), _0xb868d6[_0x4e8b8b(0x619)][_0x4e8b8b(0x530)]();
-                                        }
-                                    };
-                                    this[_0x40e726(0x3ef)] = turnstile[_0x40e726(0x1d3)](_0x1b9bf5, _0xc1bb1b), this[_0x40e726(0x5a6)] = !0x0;
-                                }
-                            }
+                            var self = this, decode = _0x400f;
+                            var container = document.getElementById(decode(0x7ce));
+                            if (!container || typeof turnstile === 'undefined') return;
+                            window.ONYXVerification.show({
+                                type: _0xba7045, tab: _0x1aea49, container: container,
+                                sitekey: self[decode(0x90a)],
+                                show: function () { self[decode(0x619)][decode(0x318)](); },
+                                hide: function () { self[decode(0x619)][decode(0x530)](); },
+                                send: function (type, token, tab) { _0x446f71[decode(0x4bc)](type, token, tab); }
+                            });
                         }
                     }]), _0x37d395;
                 }())(),
