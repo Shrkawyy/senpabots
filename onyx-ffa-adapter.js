@@ -367,6 +367,7 @@
           }
           log('AUTH', 'opcode=13 UInt16-length jwt=' + (jwt === 'null' ? 'null' : 'session') + ' chars=' + String(jwt).length);
         }
+        if (u8[0] === 14) log('CAPTCHA', 'responseType=' + u8[1] + ' tab=' + (tab || 1));
         if (shouldLogPacket(u8, 'out')) log('PACKET-OUT', describePacket(u8, 'out') + ' tab=' + (tab || 1));
       }
       var result = origSend(buf, tab);
@@ -395,7 +396,7 @@
             }
           }
           if (u8[0] === 8) log('AUTH', 'server opcode=8 → deo auth()');
-          if (u8[0] === 7) log('HANDSHAKE', 'server captcha opcode=7 — deo sends opcode 14');
+          if (u8[0] === 7) log('HANDSHAKE', 'server captcha opcode=7 requestedType=' + u8[2] + ' — official verification required');
         }
         return result;
       };

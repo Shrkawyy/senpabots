@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KaterOnyx FFA for Senpa
 // @namespace    https://kateronyx.local/ffa
-// @version      2.5.2
+// @version      2.5.3
 // @description  Loads the full ONYX engine (deo.onyx + PIXI + WASM create) on Senpa's official origin.
 // @author       Shrkawy
 // @match        https://senpa.io/*
@@ -27,7 +27,7 @@
 
   var DEFAULT_BASE_URL = 'https://senpabots.vercel.app/';
   var CLIENT_FILE = 'index.html';
-  var VERSION = '2.5.2';
+  var VERSION = '2.5.3';
   var MOUNT_KEY = 'kateronyx:mounting';
   var LOCAL_CSS = [
     'assets/css/albion.css',
@@ -479,6 +479,9 @@
     var customJs = await gmGet(baseUrl + 'onyx-custom.js?v=' + v);
     var soundsJs = await gmGet(baseUrl + 'assets/js/ryuten-sounds.js?v=' + v);
     var deoJs = await gmGet(baseUrl + 'deo.onyx.beautified.js?v=' + v);
+    // Compatibility with hosted engines released before 2.5.3.
+    // Preserve the challenge type requested by the server; the token is unchanged.
+    deoJs = deoJs.replace("_0x446f71[_0x4e8b8b(0x4bc)](0x2, _0x598234, _0xb868d6[_0x4e8b8b(0x855)])", "_0x446f71[_0x4e8b8b(0x4bc)](_0xba7045, _0x598234, _0xb868d6[_0x4e8b8b(0x855)])");
     var extrasJs = await gmGet(baseUrl + 'assets/js/ryuten-extras.js?v=' + v);
     var serversJs = await gmGet(baseUrl + 'onyx-servers.js?v=' + v);
     var adapterJs = await gmGet(baseUrl + 'onyx-ffa-adapter.js?v=' + v);
