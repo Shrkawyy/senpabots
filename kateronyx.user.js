@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KaterOnyx FFA for Senpa
 // @namespace    https://kateronyx.local/ffa
-// @version      2.5.3
+// @version      2.5.4
 // @description  Loads the full ONYX engine (deo.onyx + PIXI + WASM create) on Senpa's official origin.
 // @author       Shrkawy
 // @match        https://senpa.io/*
@@ -27,7 +27,7 @@
 
   var DEFAULT_BASE_URL = 'https://senpabots.vercel.app/';
   var CLIENT_FILE = 'index.html';
-  var VERSION = '2.5.3';
+  var VERSION = '2.5.4';
   var MOUNT_KEY = 'kateronyx:mounting';
   var LOCAL_CSS = [
     'assets/css/albion.css',
@@ -482,6 +482,11 @@
     // Compatibility with hosted engines released before 2.5.3.
     // Preserve the challenge type requested by the server; the token is unchanged.
     deoJs = deoJs.replace("_0x446f71[_0x4e8b8b(0x4bc)](0x2, _0x598234, _0xb868d6[_0x4e8b8b(0x855)])", "_0x446f71[_0x4e8b8b(0x4bc)](_0xba7045, _0x598234, _0xb868d6[_0x4e8b8b(0x855)])");
+    // Decode server rejection messages without changing verification.
+    if (deoJs.indexOf('/* ONYX server-message decoder v1 */') === -1) {
+      deoJs = "/* ONYX server-message decoder v1 */\n(function (global) {\n  global.ONYXReadServerText = function (reader) {\n    var view = reader.dataView, start = reader.index;\n    var remaining = view.byteLength - start;\n    var count, offset;\n    // Recognize length-prefixed UTF-16 only when the entire payload fits.\n    if (remaining >= 2 && 2 + view.getUint16(start, true) * 2 === remaining) {\n      count = view.getUint16(start, true); offset = start + 2;\n    } else if (remaining >= 1 && 1 + view.getUint8(start) * 2 === remaining) {\n      count = view.getUint8(start); offset = start + 1;\n    } else {\n      console.warn('[ONYX SERVER-MESSAGE] Unrecognized text layout; bytes=' + remaining);\n      return '[Server message format not recognized]';\n    }\n    var text = '';\n    for (var i = 0; i < count; i++) text += String.fromCharCode(view.getUint16(offset + i * 2, true));\n    reader.index = offset + count * 2;\n    console.info('[ONYX SERVER-MESSAGE]', text);\n    return text;\n  };\n})(window);\n" + '\n' + deoJs;
+    }
+    deoJs = deoJs.replace("_0xsenpaSrvMsg = _0x105f50['readString16']();", "_0xsenpaSrvMsg = window.ONYXReadServerText(_0x105f50);");
     var extrasJs = await gmGet(baseUrl + 'assets/js/ryuten-extras.js?v=' + v);
     var serversJs = await gmGet(baseUrl + 'onyx-servers.js?v=' + v);
     var adapterJs = await gmGet(baseUrl + 'onyx-ffa-adapter.js?v=' + v);

@@ -1,3 +1,26 @@
+/* ONYX server-message decoder v1 */
+(function (global) {
+  global.ONYXReadServerText = function (reader) {
+    var view = reader.dataView, start = reader.index;
+    var remaining = view.byteLength - start;
+    var count, offset;
+    // Recognize length-prefixed UTF-16 only when the entire payload fits.
+    if (remaining >= 2 && 2 + view.getUint16(start, true) * 2 === remaining) {
+      count = view.getUint16(start, true); offset = start + 2;
+    } else if (remaining >= 1 && 1 + view.getUint8(start) * 2 === remaining) {
+      count = view.getUint8(start); offset = start + 1;
+    } else {
+      console.warn('[ONYX SERVER-MESSAGE] Unrecognized text layout; bytes=' + remaining);
+      return '[Server message format not recognized]';
+    }
+    var text = '';
+    for (var i = 0; i < count; i++) text += String.fromCharCode(view.getUint16(offset + i * 2, true));
+    reader.index = offset + count * 2;
+    console.info('[ONYX SERVER-MESSAGE]', text);
+    return text;
+  };
+})(window);
+
 /* Minimum loader generation for the hosted Senpa client. Compatibility gate, not authentication. */
 (function(){
   if(window.location && /(^|\.)senpa\.io$/i.test(window.location.hostname) && window.__ONYX_LOADER_GENERATION__ !== 2){
@@ -1952,7 +1975,7 @@ var _0x33c02e = _0x400f;
                             case 0x29:
                                 try {
                                     var _0xsenpaSrvKind = _0x105f50['readUInt8'](),
-                                        _0xsenpaSrvMsg = _0x105f50['readString16']();
+                                        _0xsenpaSrvMsg = window.ONYXReadServerText(_0x105f50);
                                     if (_0x2ae446 === 0x1 && _0xsenpaSrvKind) {
                                         var _0xsenpaSrvText = 0x2 === _0xsenpaSrvKind && _0xsenpaSrvMsg['indexOf']('|') > -0x1 ? _0xsenpaSrvMsg['split']('|')[0x1] : _0xsenpaSrvMsg;
                                         _0x5ee413['alert']('SERVER', _0xsenpaSrvText);
