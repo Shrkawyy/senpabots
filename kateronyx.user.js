@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KaterOnyx FFA for Senpa
 // @namespace    https://kateronyx.local/ffa
-// @version      2.5.0
+// @version      2.5.1
 // @description  Loads the full ONYX engine (deo.onyx + PIXI + WASM create) on Senpa's official origin.
 // @author       Shrkawy
 // @match        https://senpa.io/*
@@ -27,7 +27,7 @@
 
   var DEFAULT_BASE_URL = 'https://senpabots.vercel.app/';
   var CLIENT_FILE = 'index.html';
-  var VERSION = '2.5.0';
+  var VERSION = '2.5.1';
   var MOUNT_KEY = 'kateronyx:mounting';
   var LOCAL_CSS = [
     'assets/css/albion.css',
@@ -328,6 +328,39 @@
     }
   }
 
+  // Load the official widget in the page, after the document replacement.
+  // Never fetch it with GM_xmlhttpRequest or cache verification responses.
+  function loadOfficialTurnstile() {
+    return new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      var settled = false;
+      var timer;
+      function finish(error) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        script.onload = script.onerror = null;
+        if (error) {
+          script.remove();
+          reject(error);
+        } else {
+          console.log('[ONYX] Official Turnstile script loaded');
+          resolve();
+        }
+      }
+      script.async = true;
+      script.onload = function () { finish(); };
+      script.onerror = function () {
+        finish(new Error('Cloudflare verification could not load. Allow challenges.cloudflare.com in your content blocker, then reload Senpa.'));
+      };
+      timer = setTimeout(function () {
+        finish(new Error('Cloudflare verification loading timed out. Check your connection and content blockers, then reload Senpa.'));
+      }, 20000);
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      document.head.appendChild(script);
+    });
+  }
+
   function injectScript(text, label) {
     return new Promise(function (resolve, reject) {
       var blob = new Blob([text + '\n//# sourceURL=kateronyx://' + label], { type: 'text/javascript' });
@@ -489,6 +522,7 @@
     for (var p = 0; p < cdnTexts.length; p++) {
       await injectScript(cdnTexts[p][1], cdnTexts[p][0]);
     }
+    await loadOfficialTurnstile();
     await injectScript(libJs, 'lib.js');
     await injectScript(authJs, 'onyx-senpa-auth.js');
     await injectScript(runtimeJs, 'runtime.js');
