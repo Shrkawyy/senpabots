@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KaterOnyx FFA for Senpa
 // @namespace    https://kateronyx.local/ffa
-// @version      2.5.1
+// @version      2.5.2
 // @description  Loads the full ONYX engine (deo.onyx + PIXI + WASM create) on Senpa's official origin.
 // @author       Shrkawy
 // @match        https://senpa.io/*
@@ -27,7 +27,7 @@
 
   var DEFAULT_BASE_URL = 'https://senpabots.vercel.app/';
   var CLIENT_FILE = 'index.html';
-  var VERSION = '2.5.1';
+  var VERSION = '2.5.2';
   var MOUNT_KEY = 'kateronyx:mounting';
   var LOCAL_CSS = [
     'assets/css/albion.css',
@@ -159,7 +159,10 @@
     if (!el || el.nodeType !== 1) return false;
     var tag = el.tagName;
     var src = srcOf(el);
-    // Keep only our local codec frame; ordinary injected frames are still removed.
+    // Widgets can insert an empty frame before navigating it. Leave its
+    // sandbox and document untouched so official verification can initialize.
+    if (tag === 'IFRAME' && (!src || /^about:blank(?:[#?].*)?$/i.test(src))) return false;
+    // Keep our local codec frame as well.
     if (tag === 'IFRAME' && el.getAttribute('data-onyx-codec') === 'local' &&
         !el.getAttribute('src') && (el.srcdoc || '').indexOf('<!doctype html><meta charset="utf-8"><script>') === 0) return false;
     if (isAllowedKeep(src)) return false;
