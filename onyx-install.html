@@ -19,22 +19,22 @@
 <body>
   <main>
     <h1>Kater<span>Onyx</span></h1>
-    <p class="tag">FFA client, loaded on Senpa's official web origin — same host logic as JaxxV6, without the Jaxx app.</p>
+    <p class="tag">Hosted release 2.6.4 · loads the Onyx files from senpabots.vercel.app.</p>
     <a class="install" href="./kateronyx.user.js">Install Tampermonkey script</a>
     <ol>
       <li>Install Tampermonkey.</li>
-      <li>Serve this folder: <code>npx --yes serve -p 4173</code></li>
       <li>Click install above and confirm the script.</li>
-      <li>Reinstall/update the userscript if it was already installed (version 1.10.2).</li>
+      <li>If you installed the local trial, update the existing script to version <code>2.6.4</code>.</li>
+      <li>Enable only one Senpa userscript.</li>
       <li>Open <a href="https://senpa.io/web/">https://senpa.io/web/</a>.</li>
     </ol>
     <div class="note">
       Do not open <code>onyx-ffa-page.html</code> or <code>ffa/client.html</code> as the game host.
       The userscript must run on <code>senpa.io</code> so the FFA server sees Senpa's official Origin.
       After updating, disable JaxxV6 / other Senpa scripts, then hard-refresh <code>https://senpa.io/web/</code>.
-      Success looks like the ONYX menu, PIXI on <code>#canvas</code>, console <code>[ONYX-ENGINE]</code> / <code>THEME_INLINED = true</code>, and PLAY going through deo.onyx (not ONYXFfa).
-      If the script cannot fetch files, run this in the senpa.io console:
-      <br><code>localStorage.setItem("kateronyx:base-url","http://127.0.0.1:4173/")</code>
+      The hosted script does not need Node.js or a server running on your computer.
+      Old saved localhost addresses are ignored. The official verification and game files remain the same.
+      If loading fails, check that the latest GitHub commit has finished deploying to Vercel, then reinstall from this page.
     </div>
   </main>
 </body>

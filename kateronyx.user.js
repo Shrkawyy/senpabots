@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KaterOnyx FFA for Senpa
 // @namespace    https://kateronyx.local/ffa
-// @version      2.6.3
+// @version      2.6.4
 // @description  Loads the full ONYX engine (deo.onyx + PIXI + WASM create) on Senpa's official origin.
 // @author       Shrkawy
 // @match        https://senpa.io/*
@@ -9,25 +9,22 @@
 // @run-at       document-start
 // @grant        GM_xmlhttpRequest
 // @grant        GM_info
-// @connect      127.0.0.1
-// @connect      localhost
-// @connect      192.168.1.6
+// @connect      senpabots.vercel.app
 // @connect      pixijs.download
 // @connect      cdn.jsdelivr.net
 // @connect      unpkg.com
 // @connect      cdn.rawgit.com
-// @connect      *
-// @updateURL    none
-// @downloadURL  none
+// @updateURL    https://senpabots.vercel.app/kateronyx.meta.js
+// @downloadURL  https://senpabots.vercel.app/kateronyx.user.js
 // @noframes
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  var DEFAULT_BASE_URL = 'senpabots.vercel.app';
+  var DEFAULT_BASE_URL = 'https://senpabots.vercel.app/';
   var CLIENT_FILE = 'index.html';
-  var VERSION = '2.6.3';
+  var VERSION = '2.6.4';
   var MOUNT_KEY = 'kateronyx:mounting';
   var LOCAL_CSS = [
     'assets/css/albion.css',
@@ -58,7 +55,7 @@
   }
 
   function getBaseUrl() {
-    // Local trial: use this build even if an older hosted URL was saved.
+    // Hosted release: never inherit a saved localhost URL from an older trial.
     return DEFAULT_BASE_URL;
   }
 
@@ -235,14 +232,18 @@
     var detail = document.createElement('p');
     var help = document.createElement('p');
     var reload = document.createElement('button');
+    var reinstall = document.createElement('a');
     style.textContent = 'html,body{height:100%;margin:0;background:#090b10;color:#e8eef6;font:16px system-ui,sans-serif}body{display:grid;place-items:center}.box{max-width:640px;padding:30px;border:1px solid #2a3645;border-radius:14px;background:#111721}h1{margin-top:0;color:#ff647c}button{padding:10px 16px;border:0;border-radius:8px;cursor:pointer}code{color:#7de8ff}';
     box.className = 'box';
     title.textContent = 'KaterOnyx could not load';
     detail.textContent = String(message);
-    help.innerHTML = 'Serve the KaterOnyx folder (<code>npx serve -p 4173</code>), then set <code>localStorage.setItem("kateronyx:base-url","http://127.0.0.1:4173/")</code> on this page if needed.';
+    help.textContent = 'This release loads its files from ' + DEFAULT_BASE_URL + '. Check the hosting deployment, or reinstall the latest hosted userscript below.';
+    reinstall.textContent = 'Reinstall hosted userscript';
+    reinstall.href = new URL('kateronyx.user.js', DEFAULT_BASE_URL).href;
+    reinstall.style.cssText = 'display:inline-block;margin-left:14px;color:#7de8ff';
     reload.textContent = 'Reload';
     reload.addEventListener('click', function () { location.reload(); });
-    box.append(title, detail, help, reload);
+    box.append(title, detail, help, reload, reinstall);
     head.appendChild(style);
     body.appendChild(box);
     document.documentElement.replaceChildren(head, body);
@@ -423,12 +424,6 @@
     if (window.__KATERONYX_MOUNTED__) return;
     window.__KATERONYX_MOUNTED__ = true;
 
-    var cssGets = LOCAL_CSS.map(function (file) {
-      return gmGet(baseUrl + file + '?v=' + encodeURIComponent(VERSION)).then(function (css) {
-        return [file, css];
-      });
-    });
-
     var v = encodeURIComponent(VERSION);
     var html = await gmGet(baseUrl + CLIENT_FILE + '?v=' + v);
     var wasm = await gmGet(baseUrl + '899.wasm?v=' + v, 'arraybuffer');
@@ -458,15 +453,19 @@
     var verificationJs = await gmGet(baseUrl + 'onyx-verification.js?v=' + v);
     var uiJs = await gmGet(baseUrl + 'onyx-ui.js?v=' + v);
 
-    var cdnTexts = await Promise.all(CDN_SCRIPTS.map(function (item) {
+    // Attach rejection handlers to every parallel request immediately. A failed
+    // host must produce one load error, not unhandled stylesheet rejections.
+    var styleAndLibraries = await Promise.all([Promise.all(LOCAL_CSS.map(function (file) {
+      return gmGet(baseUrl + file + '?v=' + v).then(function (css) { return [file, css]; });
+    })), Promise.all(CDN_SCRIPTS.map(function (item) {
       return gmGet(item[0]).then(function (text) {
         return [item[1], text];
       }).catch(function (err) {
         throw new Error('CDN script failed (' + item[1] + '): ' + (err && err.message || err));
       });
-    }));
-
-    var cssPairs = await Promise.all(cssGets);
+    }))]);
+    var cssPairs = styleAndLibraries[0];
+    var cdnTexts = styleAndLibraries[1];
     var fontBlob = fontBuf ? URL.createObjectURL(new Blob([fontBuf], { type: 'font/woff' })) : '';
     var cssMap = {};
     for (var i = 0; i < cssPairs.length; i++) {
