@@ -1,7 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const full=fs.readFileSync(path.join(__dirname,'../deo.onyx.beautified.js'),'utf8');
-const source=full.slice(full.indexOf('/* ONYX server-message decoder v1 */'));
+const source=fs.readFileSync(path.join(__dirname,'../deo.onyx.beautified.js'),'utf8');
 const end=source.indexOf('})(window);')+'})(window);'.length;
 function decoder(){const logs=[];const c={window:{},console:{info:(...x)=>logs.push(x),warn:(...x)=>logs.push(x)}};vm.createContext(c);vm.runInContext(source.slice(0,end),c);return {read:c.window.ONYXReadServerText,logs};}
 for(const prefix of [1,2])test('decodes exact-length UTF16 server text with '+prefix+'-byte length',()=>{

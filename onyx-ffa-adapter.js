@@ -29,6 +29,27 @@
   var wasmWaitTimer = null;
   var secondaryInitAllowedUntil = 0;
   var mainSlots = 0;
+  var connectionSequence = 0;
+  var connectionStates = new WeakMap();
+
+  // Observe transport events only. Never inspect frames, credentials or close reasons.
+  function traceConnection(socket, tab) {
+    if (!socket || typeof socket !== 'object' || connectionStates.has(socket)) return;
+    var state = { id: ++connectionSequence, tab: tab, opened: false, messages: 0, auth: false, challenge: false, accepted: false };
+    connectionStates.set(socket, state);
+    if (typeof socket.addEventListener !== 'function') return;
+    socket.addEventListener('open', function () {
+      state.opened = true;
+      log('TRANSPORT', 'tab=' + tab + ' connection=' + state.id + ' WebSocket open');
+    });
+    socket.addEventListener('message', function () { state.messages++; });
+    socket.addEventListener('close', function (event) {
+      log('TRANSPORT', 'tab=' + tab + ' connection=' + state.id + ' closed code=' + event.code + ' clean=' + !!event.wasClean + ' opened=' + state.opened + ' frames=' + state.messages + ' auth=' + state.auth + ' challenge=' + state.challenge + ' accepted=' + state.accepted);
+    });
+    socket.addEventListener('error', function () {
+      log('TRANSPORT', 'tab=' + tab + ' connection=' + state.id + ' WebSocket error');
+    });
+  }
 
   /* Only a real user Tab press may open the second connection. */
   function armSecondaryInit() {
@@ -218,6 +239,7 @@
       cellOutLog++;
       return cellOutLog <= 3;
     }
+    if(dir==='in'&&op===22){cellInLog++;return cellInLog<=3;}
     if (op === 30) return false;
     return true;
   }
@@ -311,7 +333,15 @@
     origOnClose = typeof sc.onClose === 'function' ? sc.onClose.bind(sc) : null;
     origOnError = typeof sc.onError === 'function' ? sc.onError.bind(sc) : null;
 
+    var pendingBrowserInit=new Map();
     sc.init = function (host, tab) {
+      tab=tab||1;
+      var verificationBootstrap=global.ONYXVerification;
+      if(verificationBootstrap&&verificationBootstrap.browserReady&&!verificationBootstrap.browserReady()){
+        var ticket={host:host,tab:tab,secondaryArmed:tab===2&&Date.now()<=secondaryInitAllowedUntil};pendingBrowserInit.set(tab,ticket);
+        verificationBootstrap.prepareBrowserSession().then(function(){if(pendingBrowserInit.get(tab)!==ticket)return;pendingBrowserInit.delete(tab);if(ticket.secondaryArmed)secondaryInitAllowedUntil=Date.now()+1200;sc.init(ticket.host,tab);});return;
+      }
+      pendingBrowserInit.delete(tab);
       if ((tab || 1) === 1) mainSlots = 0;
       if (tab === 2 && mainSlots > 1) return null;
       var mapped = mapHost(host);
@@ -334,6 +364,7 @@
       }
       try {
         var result = origInit(mapped, tab);
+        traceConnection(sc['Tab' + tab], tab);
       } catch (err) {
         if (tab === 2) {
           log('CONNECT', 'tab=2 create failed — ' + (err && err.message || err));
@@ -354,8 +385,15 @@
       return result;
     };
 
+    if(typeof sc.disconnect==='function'){
+      var previousDisconnect=sc.disconnect.bind(sc);
+      sc.disconnect=function(tab){pendingBrowserInit.delete(tab||1);if(global.ONYXVerification)global.ONYXVerification.cancel(sc['Tab'+(tab||1)],'Connection closed',false);return previousDisconnect(tab);};
+    }
+
     sc.send = function (buf, tab) {
       var u8 = toU8(buf);
+      var state = connectionStates.get(sc['Tab' + (tab || 1)]);
+      if (state && u8 && u8[0] === 13) state.auth = true;
       if (u8 && u8.length && isNewFfaHost(lastConnectHost || selectedRaw())) {
         if (u8[0] === 0x0d) {
           var jwt = readJwt();
@@ -381,6 +419,23 @@
     if (origOnMessage) {
       sc.onMessage = function (data, tab) {
         var u8 = toU8(data);
+        var owner=sc['Tab'+(tab||1)],verification=global.ONYXVerification;
+        var state = connectionStates.get(owner);
+        if (state && u8 && u8[0] === 7) state.challenge = true;
+        if (state && u8 && u8[0] === 0) state.accepted = true;
+        if(u8&&u8[0]===7&&verification){
+          if(u8.length<3){log('CAPTCHA','Truncated verification request');return;}
+          if(!owner||owner.readyState!==1){log('CAPTCHA','Verification request arrived without an open connection');return;}
+          var responseType=1,version=u8[2],loggedUsersOnly=u8[1];
+          log('CAPTCHA','Request loggedUsersOnly='+loggedUsersOnly+' version='+version+' action=game-connect');
+          verification.request({owner:owner,key:loggedUsersOnly+':'+version,label:'Player '+(tab||1),
+            isCurrent:function(){return sc['Tab'+(tab||1)]===owner&&owner.readyState===1;},
+            submit:function(token){if(sc['Tab'+(tab||1)]!==owner||owner.readyState!==1)return false;sc.send(verification.captchaPacket(responseType,token).buffer,tab||1);return true;},
+            onState:function(state){log('CAPTCHA','Player '+(tab||1)+' '+state);},
+            onCancel:function(reason){log('CAPTCHA',reason);if(sc['Tab'+(tab||1)]===owner)owner.close();}
+          });return;
+        }
+        if(u8&&u8[0]===0&&verification&&owner)verification.complete(owner);
         if ((tab || 1) === 1 && u8 && u8[0] === 0 && u8.length >= 8 + 2 * u8[7]) mainSlots = u8[7];
         var result = origOnMessage(data, tab);
         if (u8 && u8.length && isNewFfaHost(lastConnectHost || selectedRaw())) {
@@ -404,6 +459,7 @@
 
     if (origOnClose) {
       sc.onClose = function (tab) {
+        if(global.ONYXVerification)global.ONYXVerification.cancel(sc['Tab'+(tab||1)],'Connection closed',false);
         log('DISCONNECT', 'tab=' + (tab || 1));
         spectateSent = false;
         return origOnClose(tab);
@@ -459,6 +515,7 @@
   }
 
   function boot() {
+    log('RELEASE', '2.6.3 - official interactive verification; transport diagnostics');
     installWasmLocate();
     seedExtrasServer();
     seedChatType();

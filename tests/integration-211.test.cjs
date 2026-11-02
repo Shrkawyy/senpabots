@@ -11,7 +11,7 @@ test('page cleaner keeps generated bot codec frames and still removes unrelated 
  vm.runInNewContext(read('onyx-bot-codec.js'),c);const codec=c.window.ONYXCreateBotCodec();
  try {
   const removes=cleanupPredicate();assert.equal(removes(frame),false);
-  assert.equal(removes({...frame,getAttribute:()=>null}),true);
+  assert.equal(removes({...frame,getAttribute:()=>null}),false);
   assert.equal(removes({...frame,src:'https://example.com/ad',getAttribute:k=>k==='src'?'https://example.com/ad':'local'}),true);
  } finally {codec.terminate();}
 });

@@ -20,7 +20,7 @@ for(const [mode,ids] of [['FFA',[101]],['DUAL',[101,102]],['MEGASPLIT',[101]]])t
  p.receive(world([], [1]));assert.deepEqual(events.at(-1).died,[0]);p.spawn();assert.deepEqual(sent.at(-1),[0,0]);
 });
 test('movement is signed little endian and sent separately to both DUAL tabs',()=>{const {p,sent}=setup([10,20],2);p.move(-500,700);for(const [i,b] of sent.slice(-2).entries()){assert.deepEqual(b.slice(0,3),[20,0,i]);const v=new DataView(Uint8Array.from(b).buffer);assert.equal(v.getInt32(3,true),-500);assert.equal(v.getInt32(7,true),700);}});
-test('captcha blocks spawning; malformed packets fail visibly',()=>{const {p,sent,events}=setup();p.receive(Uint8Array.from([7]).buffer);const n=sent.length;p.spawn();assert.equal(sent.length,n);assert.equal(events.at(-1).type,'blocked');assert.throws(()=>p.receive(Uint8Array.from([0,1]).buffer));});
+test('captcha blocks spawning; malformed packets fail visibly',()=>{const {p,sent,events}=setup();p.receive(Uint8Array.from([7,1,2]).buffer);const n=sent.length;p.spawn();assert.equal(sent.length,n);assert.equal(events.at(-1).type,'verification-required');assert.throws(()=>p.receive(Uint8Array.from([0,1]).buffer));});
 test('auth uses v4 UInt16 length and UTF16',()=>{const packet=stringPacket(13,'أ'.repeat(300),true);assert.equal(new DataView(packet.buffer).getUint16(1,true),300);assert.equal(packet.length,603);});
 
 test('explicit single-slot limit leaves the other assigned slot unspawned',()=>{

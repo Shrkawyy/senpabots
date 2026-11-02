@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 
-function environment(host) {
+function environment(host, socket = null) {
   const values = new Map();
   const storage = { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
   const option = { value: host, getAttribute: () => null };
@@ -14,23 +14,48 @@ function environment(host) {
   const sent = [];
   const initialized = [];
   const windowEvents = {};
+  const logs = [];
   const context = vm.createContext({
-    console: { log() {}, warn() {} },
+    console: { log: (...args) => logs.push(args.join(' ')), warn() {} },
     document: { readyState: 'loading', addEventListener: (type, fn) => listeners.push(fn), getElementById: id => id === 'servers' ? select : null },
     location: { host: 'senpa.io' },
     localStorage: storage, sessionStorage: storage,
     crypto: { randomUUID: () => '11111111-2222-4333-8444-555555555555' },
     addEventListener(type,fn) {windowEvents[type]=fn;}, setTimeout, clearTimeout, setInterval, clearInterval,
     ArrayBuffer, Uint8Array, DataView, Set,
-    SC: { init: (...args) => initialized.push(args), send: data => sent.push(data), onMessage() {}, onClose() {}, onError() {} },
+    SC: { init(...args) { initialized.push(args); if (socket) this['Tab' + (args[1] || 1)] = socket; }, disconnect() {}, send: data => sent.push(data), onMessage() {}, onClose() {}, onError() {} },
     zt: {},
   });
   context.window = context;
   for (const file of ['onyx-servers.js', 'onyx-ffa-adapter.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   // The adapter's DOM-ready callback can run independently of tracker/network access.
   listeners[1]();
-  return { context, sent, initialized, select, windowEvents };
+  return { context, sent, initialized, select, windowEvents, logs };
 }
+
+test('transport diagnostics observe close codes without logging payloads or replacing socket handlers', () => {
+  const events = {}, originalHandler = () => {};
+  const socket = { readyState: 1, onclose: originalHandler, addEventListener: (name, fn) => { events[name] = fn; } };
+  const { context: c, logs, sent } = environment('eu1.senpa.io:7101', socket);
+  c.SC.init('eu1.senpa.io:7101', 1);
+  events.open(); events.message({ data: 'private-content' });
+  c.SC.send(Uint8Array.of(13, 0).buffer, 1);
+  events.close({ code: 1006, wasClean: false, reason: 'private-reason' });
+  assert.equal(socket.onclose, originalHandler);
+  assert.equal(sent.length, 1);
+  assert.ok(logs.some(line => line.includes('closed code=1006 clean=false opened=true frames=1 auth=true challenge=false accepted=false')));
+  assert.ok(logs.every(line => !line.includes('private-')));
+});
+
+test('a queued connection waits for browser initialization and uses only the latest requested server',async()=>{
+ const {context:c,initialized}=environment('eu1.senpa.io:7101');let ready=false,finish;const pending=new Promise(resolve=>finish=resolve);
+ c.ONYXVerification={browserReady:()=>ready,prepareBrowserSession:()=>pending,cancel(){}};
+ c.SC.init('eu1.senpa.io:7101',1);c.SC.init('eu1.senpa.io:7106',1);assert.equal(initialized.length,0);ready=true;finish();await new Promise(resolve=>setImmediate(resolve));assert.equal(initialized.length,1);assert.equal(initialized[0][0],'eu1.senpa.io:7106');
+});
+test('disconnect cancels a connection still waiting for browser initialization',async()=>{
+ const {context:c,initialized}=environment('eu1.senpa.io:7101');let ready=false,finish;const pending=new Promise(resolve=>finish=resolve);
+ c.ONYXVerification={browserReady:()=>ready,prepareBrowserSession:()=>pending,cancel(){}};c.SC.init('eu1.senpa.io:7101',1);c.SC.disconnect(1);ready=true;finish();await new Promise(resolve=>setImmediate(resolve));assert.equal(initialized.length,0);
+});
 
 for (const [name, host, legacy] of [
   ['Nemesis', 'eu1.senpa.io:7101', 'eu.senpa.io:2001'],

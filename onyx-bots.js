@@ -9,7 +9,7 @@
   const root = host.attachShadow({mode:'open'});
   root.innerHTML = `<style>
   :host{font:12px Arial,sans-serif;color:#c8cbce}*{box-sizing:border-box}button,input,select{font:inherit;color:inherit;background:#101214;border:1px solid #303438;border-radius:4px;min-height:34px;padding:8px}button{cursor:pointer}button:hover{background:#252a30;border-color:#6a7480}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #7dd3fc}button:disabled{opacity:.4;cursor:default}section{width:380px;max-width:calc(100vw - 24px);background:#0a0c0eed;border:1px solid #303438;border-radius:8px;box-shadow:0 12px 45px #0009;overflow:hidden}header{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #272b30}header strong{flex:1;font-size:13px}header small{color:#929ba4;font-size:10px}main{padding:12px;max-height:calc(100vh - 155px);overflow:auto}nav,.row,.actions{display:flex;gap:8px;margin-bottom:12px}nav button{flex:1;font-size:10px;padding:6px 2px}.account-row{padding:10px 0;border-bottom:1px solid #293242}.account-status{color:#98b7cc;font-size:11px;margin:6px 0;overflow-wrap:anywhere}.account-actions{display:flex;flex-wrap:wrap;gap:5px}.account-actions button{min-height:29px;padding:6px 7px;flex:1}.warning{color:#dcbf8a} .small{font-size:10px}nav button[aria-selected=true]{border-color:#8294a8}label{display:block;color:#909aa5;font-size:10px;line-height:1.5}label input:not([type=checkbox]),label select{width:100%;display:block;margin-top:4px}label.grow{flex:1}.count{width:72px}.checks{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}.checks label{display:flex;align-items:center;gap:5px}input[type=checkbox]{min-height:0;accent-color:#b1c6d9}.actions button{flex:1}footer{border:1px solid #282c30;border-radius:4px;padding:9px;color:#93a3b4;overflow-wrap:anywhere}.hint{font-size:11px;color:#9ba6b1;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px monospace;max-height:350px;overflow:auto}.bot{padding:10px 0;border-bottom:1px solid #292e33} [hidden]{display:none!important}
-  </style><section><header><strong>🤖 GAME BOTS · 2.5.0</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
+  </style><section><header><strong>🤖 GAME BOTS · 2.6.3</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
   <nav><button data-tab="controls" aria-selected="true">CONTROLS</button><button data-tab="accounts">BOT ACCOUNTS</button><button data-tab="active">ACTIVE BOTS</button><button data-tab="console">CONSOLE</button></nav>
   <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">ADD COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
   <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Each Connect adds COUNT players. Maximum 100 connected or waiting.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
@@ -87,6 +87,7 @@
     if(accounts)renderAccounts();
   }
   function dispose(b, reason) {
+    if(b.worker&&window.ONYXVerification)window.ONYXVerification.cancel(b.worker,'Connection closed',false);
     if(!b.accountSlot && !b.ready && (b.worker||b.status==='Queued')){state.remaining=0;}
     clearTimeout(b.timer); clearTimeout(b.respawnTimer); clearTimeout(b.spawnTimer);
     if (b.worker) { b.worker.postMessage({type:'close'}); b.worker.terminate(); b.worker=null; }
@@ -94,7 +95,7 @@
   }
   function stop(reason='Stopped',preserve=false) { if(accounts&&!preserve)for(let id=1;id<=accounts.count;id++)accounts.setIntent(id,false); if(reason.startsWith('Server changed')){state.target=null;boxDragging=false;drawBox();} feeding=false;state.generation++; state.remaining=0; state.bots.forEach(b=>dispose(b,reason)); state.spawnWanted=false; state.paused=false; $('pause').textContent='Ⅱ Pause'; render(); log(reason); }
   function spawnBot(b) {
-    if (!b.ready || !b.worker || state.paused || b.spawnTimer || b.respawnTimer || b.alive.length === b.slots) return;
+    if (!b.ready || b.verifying || !b.worker || state.paused || b.spawnTimer || b.respawnTimer || b.alive.length === b.slots) return;
     aim(b);
     b.worker.postMessage({type:'spawn'}); b.status='Waiting for own cells';audit(b.accountSlot||'primary','SPAWN_REQUEST',b.name);
     b.spawnTimer=setTimeout(()=>{ b.spawnTimer=null; if(b.alive.length<b.slots) { audit(b.accountSlot||'primary','SPAWN_TIMEOUT',b.name+': spawn not confirmed after 8s.'); b.status='Spawn unconfirmed'; render(); } },8000);
@@ -122,10 +123,23 @@
         const token=b.accountSlot ? accounts&&accounts.getToken(b.accountSlot) : window.ONYXFfaAdapter.readJwt();
         if(!token || token==='null') {dispose(b,'No verified session');audit(b.accountSlot||'primary','AUTH_MISSING','No verified, unexpired session for this bot.');return;}
         b.status='Connecting';
-        worker.postMessage({type:'connect',url:window.ONYXFfaAdapter.wsUrl(entry.host),name:b.name,slotLimit:b.requestedSlots,token:token,tag:window.ONYXBotGame?window.ONYXBotGame.tag():''});
+        const connectReady=()=>{if(generation!==state.generation||b.worker!==worker)return;worker.postMessage({type:'connect',url:window.ONYXFfaAdapter.wsUrl(entry.host),name:b.name,slotLimit:b.requestedSlots,token:token,tag:window.ONYXBotGame?window.ONYXBotGame.tag():''});};
+        if(window.ONYXVerification?.prepareBrowserSession)window.ONYXVerification.prepareBrowserSession().then(connectReady);else connectReady();
       }
       if(m.type==='open') {b.status='Authenticating';audit(b.accountSlot||'primary','WS_OPEN',b.name+': WebSocket open; waiting for server handshake.');}
-      if(m.type==='ready') {if(b.ready)return;clearTimeout(b.timer);b.ready=true;b.slots=m.slots;if(!b.accountSlot)state.remaining=Math.max(0,state.remaining-b.slots);b.border=m.border;b.status='Ready';if(b.accountSlot)fillAccount(b,entry,generation);audit(b.accountSlot||'primary','READY',b.name+': '+m.slots+' players; server assigned '+(m.assignedSlots||m.slots)+' slots.');if($('auto').checked||state.spawnWanted||b.restoreSpawn) spawnBot(b);if(!b.accountSlot)queueNext(entry,generation);}
+      if(m.type==='verification-required') {
+        if(!window.ONYXVerification){dispose(b,'Verification UI missing. Reload the updated userscript.');return;}
+        clearTimeout(b.timer);b.verifying=true;b.status='Waiting for verification';
+        window.ONYXVerification.request({owner:worker,key:String(m.requestId),label:b.name,requestId:m.requestId,
+          isCurrent:()=>generation===state.generation&&b.worker===worker,
+          submit:token=>{if(generation!==state.generation||b.worker!==worker)return false;worker.postMessage({type:'verification-response',requestId:m.requestId,challengeType:m.challengeType,token});return true;},
+          onState:phase=>{b.status=phase==='submitted'?'Verification sent; waiting for server':'Solve verification';render();},
+          onCancel:reason=>{dispose(b,reason);audit(b.accountSlot||'primary','VERIFICATION_CANCELLED',b.name+': '+reason);}
+        });
+        audit(b.accountSlot||'primary','VERIFICATION_REQUIRED',b.name+': solve the official check for this connection.');
+      }
+
+      if(m.type==='ready') {b.verifying=false;if(window.ONYXVerification)window.ONYXVerification.complete(worker);if(b.ready){b.status='Ready';render();return;}clearTimeout(b.timer);b.ready=true;b.slots=m.slots;if(!b.accountSlot)state.remaining=Math.max(0,state.remaining-b.slots);b.border=m.border;b.status='Ready';if(b.accountSlot)fillAccount(b,entry,generation);audit(b.accountSlot||'primary','READY',b.name+': '+m.slots+' players; server assigned '+(m.assignedSlots||m.slots)+' slots.');if($('auto').checked||state.spawnWanted||b.restoreSpawn) spawnBot(b);if(!b.accountSlot)queueNext(entry,generation);}
       if(m.type==='world') {
         const previous=b.status+':'+b.alive.join(',');
         b.alive=m.alive;
@@ -200,7 +214,7 @@
   root.querySelectorAll('[data-tab]').forEach(btn=>btn.onclick=()=>{for(const id of ['controls','accounts','active','console']) $(id).hidden=id!==btn.dataset.tab;root.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===btn)));});
   $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(state.logs.join('\n'));$('copy').textContent='Copied';}catch(_){log('Copy unavailable; select the console text.');}};
   $('export').onclick=()=>{
-    const blob=new Blob([JSON.stringify({version:'2.5.0',logs:diagnostics},null,2)],{type:'application/json'});
+    const blob=new Blob([JSON.stringify({version:'2.6.3',logs:diagnostics},null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;
     link.download='onyx-bot-diagnostics-'+new Date().toISOString().slice(0,10)+'.json';link.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);

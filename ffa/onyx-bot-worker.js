@@ -83,7 +83,9 @@
     return new Promise(function (resolve, reject) {
       var settled = false;
       moduleInstance = wasmFactory({
+        wasmBinary: self.__ONYX_BOT_WASM_BYTES__,
         locateFile: function (name) {
+          if (self.__ONYX_BOT_WASM_BYTES__) return name;
           return new URL(name, self.location.href).href;
         },
         print: function (msg) { self.postMessage({ type: 'log', msg: '[WASM] ' + msg }); },
@@ -93,7 +95,7 @@
             reject(new Error(String(msg)));
           }
         },
-        onRuntimeInitialized: function () {
+        postRun: function () {
           if (!settled) {
             settled = true;
             resolve(moduleInstance);
@@ -175,6 +177,8 @@
       ready.then(function () {
         protocol = new self.OnyxBotProtocol(send, function (event) { self.postMessage(event); },
           function (kind, bytes) { moduleInstance._alloc(kind, bytes); });
+        protocol.slotLimit = Math.min(100, Math.max(1, Math.trunc(Number(msg.slotLimit) || 1)));
+        protocol.tag = String(msg.tag || '').slice(0, 255);
         protocol.name = String(msg.name || 'Bot').slice(0, 24);
         protocol.token = msg.token || 'null';
         connect(msg.url);
@@ -183,9 +187,10 @@
       });
       return;
     }
+    if (protocol && msg.type === 'verification-response') { protocol.submitCaptcha(msg.requestId,msg.challengeType,msg.token); return; }
     if (protocol && msg.type === 'spawn') { protocol.spawn(); return; }
     if (protocol && msg.type === 'move') { protocol.move(msg.x, msg.y); return; }
-    if (protocol && msg.type === 'split') { protocol.action(22); return; }
+    if (protocol && msg.type === 'split') { protocol.action(22, msg.count); return; }
     if (protocol && msg.type === 'feed') { protocol.action(23); return; }
     if (protocol && msg.type === 'ping') { if (protocol.ready) send(new Uint8Array([30])); return; }
     if (msg.type === 'send') {
