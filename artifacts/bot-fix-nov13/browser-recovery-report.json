@@ -1,0 +1,66 @@
+{
+  "passed": true,
+  "scope": "Real UI, Protocol and verification queue with synthetic transport/provider. No live bot login or server-capacity claim.",
+  "results": {
+    "four-players": {
+      "botOnlyAccount": true,
+      "connections": 2,
+      "allocated": 4,
+      "primaryTokenUntouched": true
+    },
+    "mouse-with-main-dead": {
+      "controlledCharacters": 4,
+      "changingCoordinates": true,
+      "actualWireCoordinates": [
+        {
+          "connection": 0,
+          "slot": 0,
+          "x": 700,
+          "y": 1350
+        },
+        {
+          "connection": 0,
+          "slot": 1,
+          "x": 700,
+          "y": 1350
+        },
+        {
+          "connection": 1,
+          "slot": 0,
+          "x": 700,
+          "y": 1350
+        },
+        {
+          "connection": 1,
+          "slot": 1,
+          "x": 700,
+          "y": 1350
+        }
+      ]
+    },
+    "follow-pause-resume": {
+      "followOffStopsMoves": true,
+      "pauseStopsMoves": true,
+      "resumeUsesLatestMouse": true
+    },
+    "reverification": {
+      "waitsForServerAcceptance": true,
+      "refreshesGrantedSlots": true,
+      "accountBudget": 4,
+      "otherTransportPreserved": true
+    },
+    "partial-manual-completion": {
+      "reportsFailure": true,
+      "noRetryLoop": true,
+      "missingOnly": 2,
+      "bothAccountsReachFourInFixture": true,
+      "workingConnectionsPreserved": true
+    },
+    "stop-and-main-isolation": {
+      "allBotConnectionsClosed": true,
+      "noLateActions": true,
+      "primaryStorageUnchanged": true
+    }
+  },
+  "pageErrors": []
+}

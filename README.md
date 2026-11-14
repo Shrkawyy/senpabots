@@ -1,3 +1,7 @@
+# Current bot release: 2.7.0 (Nov 13)
+
+Start with BOT-FIX-2.7.0-AR.md for the current installation and bot-account fixes. Older instructions below are historical.
+
 # تحديث 2.2.2 — المالتي والبوتات على Senpa
 
 ابدأ بملف START-HERE-AR.txt. التعليمات القديمة أدناه مرجع تاريخي؛ هذه النسخة مختبرة محليًا ولم يتم تأكيد gameplay حي.

@@ -188,6 +188,7 @@
       return;
     }
     if (protocol && msg.type === 'verification-response') { protocol.submitCaptcha(msg.requestId,msg.challengeType,msg.token); return; }
+    if (protocol && msg.type === 'slot-limit') { protocol.setSlotLimit(msg.limit); return; }
     if (protocol && msg.type === 'spawn') { protocol.spawn(); return; }
     if (protocol && msg.type === 'move') { protocol.move(msg.x, msg.y); return; }
     if (protocol && msg.type === 'split') { protocol.action(22, msg.count); return; }

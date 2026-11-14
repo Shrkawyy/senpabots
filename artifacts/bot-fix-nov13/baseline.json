@@ -1,0 +1,17 @@
+{
+  "sourceArchiveSha256": "966b6fe68715e88065d8c053edbd44c0e22c7d60f9f0d895aa211bcd74cf4984",
+  "files": {
+    "onyx-bots.js": "a1ace0fae9b300ab3c617d7dfb7467da6fe50b3abd34ef699162a6ec962d597e",
+    "onyx-bot-codec.js": "cb25f443255ea8b1b35d4a64d069bdf33c4dae28b3c8b80ad45edf7fbe967de4",
+    "onyx-bot-accounts.js": "66a89d4b06258ed3bc6b2a9ff71e50ada04c0b66c11a3f7b6f65fbc93070fb3b",
+    "ffa/onyx-bot-protocol.js": "c116067d834813b2dd1ae6543c1100b7416057a03f6254091e679bf60e9a0b1d",
+    "ffa/onyx-bot-worker.js": "4eaced46306c85f856402727a0e455bc22a2330e4178bb0543ff39a691b040ed",
+    "kateronyx.user.js": "40de3936c783687de281857567dbecc12fd7f0df1bab309210ff7faf671199b8",
+    "kateronyx.meta.js": "4168760494a494d9e82d4c8f2989dbd247785fdb54307fadc893970357817cbd",
+    "scripts/build-bots.cjs": "5e01981cb5cd2264d256a299e2c04a965adfa94b98d93a5a2e5e7fa8a30ca77a",
+    "index.html": "ddfe22a624db1cb06f547d11b462f722d1fb4ee0e2f85f0b0a68159dc73c556b",
+    "onyx-senpa-auth.js": "eac9ccdc0ca19ad4a7355903564350c390dcd5d49558f1f7b8cb83bb191a3615",
+    "onyx-ffa.js": "022883d6d7b3930a9ef14c200dd746a2e8f805c6f20e13f2bb58d300b66077ee",
+    "deo.onyx.beautified.js": "78b4356e850c26115c6a66da6f7602445c9aa8bff559bc656dc73d9c4be79d84"
+  }
+}

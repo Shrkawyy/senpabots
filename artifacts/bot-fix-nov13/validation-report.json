@@ -1,0 +1,71 @@
+{
+  "version": "2.7.0",
+  "passed": true,
+  "sourceArchive": "senpabots-main.zip",
+  "sourceArchiveSha256": "966b6fe68715e88065d8c053edbd44c0e22c7d60f9f0d895aa211bcd74cf4984",
+  "protectedFilesUnchanged": {
+    "89.wasm": "0e9e65106383b528be9668dcc4f3b8b8b6674bb4ac3ef60f15e9f83573baf79e",
+    "899.wasm": "c0ae1dba9f1f8b232b8c88cf13b5ccef4b880b977f76c6f44a773a44f06c7849",
+    "bundle.wasm": "c0ae1dba9f1f8b232b8c88cf13b5ccef4b880b977f76c6f44a773a44f06c7849",
+    "bundle2.wasm": "c0ae1dba9f1f8b232b8c88cf13b5ccef4b880b977f76c6f44a773a44f06c7849",
+    "deo.onyx.beautified.js": "78b4356e850c26115c6a66da6f7602445c9aa8bff559bc656dc73d9c4be79d84",
+    "ffa/auth-bridge.js": "e7b04639c45cac0136176f75bab295bc0f0071252fa731729629b42f60735f2b",
+    "ffa/auth-session-bridge.js": "a8ef3d0c209fb1f7585c2fbf61149bc83d8284f3cc312315bdf090f5b94f0689",
+    "ffa/bundle.js": "9d4dc78bd86f460bcf875e98b25111da2d6c80fab38f53ed97c00ea58bb8adb0",
+    "ffa/bundle.wasm": "c0ae1dba9f1f8b232b8c88cf13b5ccef4b880b977f76c6f44a773a44f06c7849",
+    "onyx-bot-accounts.js": "66a89d4b06258ed3bc6b2a9ff71e50ada04c0b66c11a3f7b6f65fbc93070fb3b",
+    "onyx-ffa-adapter.js": "59e4076f09300446ffdcb8a69e67bcd9f2741626542d9d6f9051393b06496c16",
+    "onyx-ffa.js": "022883d6d7b3930a9ef14c200dd746a2e8f805c6f20e13f2bb58d300b66077ee",
+    "onyx-senpa-auth.js": "eac9ccdc0ca19ad4a7355903564350c390dcd5d49558f1f7b8cb83bb191a3615",
+    "onyx-verification.js": "8ec387aa3d0b4e134c2c6a6e7147606c95b8be0659c41882410e301c19beb0ef"
+  },
+  "changedOriginalFiles": [
+    "README.md",
+    "START-HERE-AR.txt",
+    "ffa/onyx-bot-protocol.js",
+    "ffa/onyx-bot-worker.js",
+    "index.html",
+    "kateronyx.meta.js",
+    "kateronyx.user.js",
+    "onyx-bot-codec.js",
+    "onyx-bots.js",
+    "onyx-local-install.html",
+    "scripts/build-bots.cjs",
+    "scripts/serve-local.cjs",
+    "tests/build.test.cjs",
+    "tests/eu-sessions.test.cjs",
+    "tests/worker-verification.test.cjs"
+  ],
+  "syntaxCheckedFiles": [
+    "onyx-bots.js",
+    "ffa/onyx-bot-protocol.js",
+    "ffa/onyx-bot-worker.js",
+    "onyx-bot-codec.js",
+    "kateronyx.user.js",
+    "kateronyx-local.user.js",
+    "scripts/build-codec.cjs",
+    "scripts/build-bots.cjs",
+    "scripts/build-local-bots.cjs",
+    "scripts/serve-local.cjs"
+  ],
+  "nodeTests": {
+    "passed": 91,
+    "failed": 0
+  },
+  "browserRecoveryCases": [
+    "four-players",
+    "mouse-with-main-dead",
+    "follow-pause-resume",
+    "reverification",
+    "partial-manual-completion",
+    "stop-and-main-isolation"
+  ],
+  "mainAndBotVerificationIsolation": true,
+  "localInstallerMatchesBuiltFile": true,
+  "liveServerAcceptanceTested": false,
+  "limitations": [
+    "Browser transport and verification providers are synthetic; no real Facebook login was used.",
+    "Four bot characters require the live server to accept the granted slots and any extra connection.",
+    "No external deployment was performed."
+  ]
+}

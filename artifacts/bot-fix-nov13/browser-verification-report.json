@@ -1,0 +1,36 @@
+{
+  "mainIndependentVerification": [
+    {
+      "opcode": 14,
+      "type": 1,
+      "length": 16
+    },
+    {
+      "opcode": 14,
+      "type": 1,
+      "length": 16
+    }
+  ],
+  "botBeforeServerAcceptance": {
+    "ready": false,
+    "submitted": true,
+    "verificationPackets": 1
+  },
+  "botSpawnAfterServerReady": true,
+  "officialWidgetOptions": [
+    {
+      "action": "game-connect",
+      "retry": "never"
+    },
+    {
+      "action": "game-connect",
+      "retry": "never"
+    },
+    {
+      "action": "game-connect",
+      "retry": "never"
+    }
+  ],
+  "pageErrors": [],
+  "scope": "Real page and MessageChannel, actual Protocol class; synthetic provider and transport. This does not prove live server acceptance."
+}

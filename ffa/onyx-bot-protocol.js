@@ -93,6 +93,17 @@
         }
       });
     }
+    setSlotLimit(limit) {
+      if(!Number.isInteger(limit)||limit<1||limit>100)return false;
+      this.slotLimit=limit;
+      if(this.assignedIds){
+        this.ids=this.assignedIds.slice(0,limit);
+        for(const [id,cell]of this.cells)if(!this.ids.includes(cell.pid))this.cells.delete(id);
+        for(const slot of this.pending.keys())if(slot>=this.ids.length)this.pending.delete(slot);
+        this.lastAlive=this.lastAlive.filter(slot=>slot<this.ids.length);
+      }
+      return true;
+    }
     move(x, y) {
       if (!this.ready || !Number.isFinite(x) || !Number.isFinite(y)) return;
       this.ids.forEach((pid, tab) => {

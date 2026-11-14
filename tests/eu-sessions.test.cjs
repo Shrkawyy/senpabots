@@ -26,9 +26,9 @@ test('reload reconnects saved account, two two-player connections total four, AC
  const w=p.workers[0];assert(w);w.onmessage({data:{type:'codec-ready'}});
  assert.equal(w.sent[0].slotLimit,4);assert.equal(w.sent[0].token,jwt);
  w.onmessage({data:{type:'ready',slots:2,assignedSlots:2}});
- assert(p.ids['account-status-1'].textContent.includes('ACTIVE'));
+ assert(p.ids['account-status-1'].textContent.includes('PARTIAL'));
  const second=p.start(2);assert.equal(second.sent[0].slotLimit,2);assert.equal(p.workers.length,2);
- assert.equal(second.sent[0].token,jwt);assert(second.sent.some(m=>m.type==='spawn'));
+ assert.equal(second.sent[0].token,jwt);assert(second.sent.some(m=>m.type==='spawn'));assert(p.ids['account-status-1'].textContent.includes('READY'));
  w.onmessage({data:{type:'close',code:1006,reason:'Network error'}});
  assert(!p.ids['account-status-1'].textContent.includes('BAN'));
  second.onmessage({data:{type:'close',code:4101,reason:'Account banned'}});

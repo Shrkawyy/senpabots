@@ -1,3 +1,7 @@
+# Current bot release: 2.7.0 (Nov 13)
+
+Start with BOT-FIX-2.7.0-AR.md for the current installation and bot-account fixes. Older instructions below are historical.
+
 تحديث 2.2.2: Connect يضيف عدد ADD COUNT إلى البوتات الموجودة بدون فصلها.
 كل ضغطة تضيف دفعة جديدة، حتى لو الدفعة السابقة ما زالت تنتظر الاتصال.
 الحد الإجمالي 100 لاعب يشمل المتصل والمنتظر. إذا بقي مكان لبوتين وطلبت 10 يضيف اثنين فقط.

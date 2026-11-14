@@ -1,0 +1,41 @@
+{
+  "evidenceId": "ev_495c87f07d5bca4ce51605f18dcc396660783228c80e577a2cf1c980b87caf99",
+  "provider": "REA JavaScript application analyzer / rea-agents 6.7.0 CLI",
+  "originalEvidencePath": "C:\\Users\\sch2\\Downloads\\Vintageio-main\\artifacts\\senpabots-proton-nov13\\onyx-rea-evidence.json",
+  "originalEvidenceBytes": 429122062,
+  "sha256": "33d6eb6e194be3a9fd9afe759e55ba85ebf142b1e9d4c8d2ace2337283207f79",
+  "authority": "shipped-artifact",
+  "execution": "inert static source analysis; no real server or authentication",
+  "limitations": [
+    "Graph coverage is incomplete; missing facts are not proof of absence.",
+    "Primitive string-byte budget and conservative getter expansion limits were reached.",
+    "Dynamic/obfuscated paths may be unresolved; inline HTML bodies were not analyzed.",
+    "Full immutable evidence is retained at the recorded local path and omitted from the release archive because of its size."
+  ],
+  "findings": [
+    {
+      "source": "onyx-bots.js:140",
+      "finding": "Verification-required retained stale ready state in the input version; repeated ready skipped metadata refresh.",
+      "change": "Suspend controls and refresh every accepted server greeting.",
+      "verification": "91 unit tests; browser re-verification scenario."
+    },
+    {
+      "source": "onyx-bots.js:199",
+      "finding": "The input version already requested a four-character account budget and queued missing slots; there was no demonstrated fixed two-character client cap.",
+      "change": "Keep server-granted slots, expose partial failures and allow missing-only completion.",
+      "verification": "2+2 and changing-grant synthetic scenarios; live rejection cause remains unknown."
+    },
+    {
+      "source": "onyx-bots.js:67",
+      "finding": "Main facade target required a living main player, preventing bot movement while the main player was dead or spectating.",
+      "change": "Use game screenTarget for mouse coordinates captured on the canvas.",
+      "verification": "Four synthetic live characters receive changing wire coordinates while main target is null."
+    },
+    {
+      "source": "BOT-FIX-VALIDATION-NOV13.json",
+      "finding": "Main login, account storage, verification implementation, engine and all WASM files are unchanged from the input archive.",
+      "verification": "SHA256 comparison against original ZIP."
+    }
+  ],
+  "liveAcceptance": "Not tested; no guarantee that a live server accepts an additional bot connection."
+}

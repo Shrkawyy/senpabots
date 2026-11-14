@@ -4,12 +4,13 @@
   if (window.ONYXBots) return;
   const scriptBase = new URL(window.__KATERONYX_BASE_URL || '.', document.baseURI);
   const state = {bots: [], generation: 0, paused: false, target: null, host: '', logs: [], spawnWanted: false, remaining: 0};
+  const CONTROL_CONFIG={playersPerAccount:4,connectionDelayMs:1000}; // هدف الحساب أربع شخصيات؛ القبول الفعلي يحدده السيرفر.
   const host = document.createElement('div'); host.id = 'onyx-bots-panel';
   Object.assign(host.style, {position:'fixed', right:'16px', top:'70px', zIndex:'100000', maxWidth:'calc(100vw - 24px)'});
   const root = host.attachShadow({mode:'open'});
   root.innerHTML = `<style>
   :host{font:12px Arial,sans-serif;color:#c8cbce}*{box-sizing:border-box}button,input,select{font:inherit;color:inherit;background:#101214;border:1px solid #303438;border-radius:4px;min-height:34px;padding:8px}button{cursor:pointer}button:hover{background:#252a30;border-color:#6a7480}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #7dd3fc}button:disabled{opacity:.4;cursor:default}section{width:380px;max-width:calc(100vw - 24px);background:#0a0c0eed;border:1px solid #303438;border-radius:8px;box-shadow:0 12px 45px #0009;overflow:hidden}header{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #272b30}header strong{flex:1;font-size:13px}header small{color:#929ba4;font-size:10px}main{padding:12px;max-height:calc(100vh - 155px);overflow:auto}nav,.row,.actions{display:flex;gap:8px;margin-bottom:12px}nav button{flex:1;font-size:10px;padding:6px 2px}.account-row{padding:10px 0;border-bottom:1px solid #293242}.account-status{color:#98b7cc;font-size:11px;margin:6px 0;overflow-wrap:anywhere}.account-actions{display:flex;flex-wrap:wrap;gap:5px}.account-actions button{min-height:29px;padding:6px 7px;flex:1}.warning{color:#dcbf8a} .small{font-size:10px}nav button[aria-selected=true]{border-color:#8294a8}label{display:block;color:#909aa5;font-size:10px;line-height:1.5}label input:not([type=checkbox]),label select{width:100%;display:block;margin-top:4px}label.grow{flex:1}.count{width:72px}.checks{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}.checks label{display:flex;align-items:center;gap:5px}input[type=checkbox]{min-height:0;accent-color:#b1c6d9}.actions button{flex:1}footer{border:1px solid #282c30;border-radius:4px;padding:9px;color:#93a3b4;overflow-wrap:anywhere}.hint{font-size:11px;color:#9ba6b1;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px monospace;max-height:350px;overflow:auto}.bot{padding:10px 0;border-bottom:1px solid #292e33} [hidden]{display:none!important}
-  </style><section><header><strong>🤖 GAME BOTS · 2.6.3</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
+  </style><section><header><strong>🤖 GAME BOTS · 2.7.0</strong><small id="counts">0 total | 0 ready | 0 alive</small><button id="collapse" aria-label="Collapse panel">−</button></header><main>
   <nav><button data-tab="controls" aria-selected="true">CONTROLS</button><button data-tab="accounts">BOT ACCOUNTS</button><button data-tab="active">ACTIVE BOTS</button><button data-tab="console">CONSOLE</button></nav>
   <div id="controls"><div class="row"><label class="grow">NAME<input id="name" maxlength="24" value="Bot"></label><label class="count">ADD COUNT<input id="count" type="number" min="1" max="100" value="2"></label></div>
   <label>SERVER · SAME AS GAME<input id="server" readonly></label><p class="hint">DUAL · FFA · MEGASPLIT<br>Each Connect adds COUNT players. Maximum 100 connected or waiting.<br>On a 2-slot server, Count 2 uses one connection controlling both players.<br>For player multibox only: use PLAY and Tab; leave bots disconnected.</p>
@@ -29,7 +30,8 @@
   <pre id="log"></pre></div>
   <footer id="status">Ready — select a server and press Connect.</footer></main></section>`;
   const $ = id => root.getElementById(id), keys = {spawn:'KeyZ',split:'KeyX',feed:'KeyC'};
-  let feeding=false, boxEnabled=false, boxDragging=false;
+  let feeding=false, boxEnabled=false, boxDragging=false, mousePoint=null;
+  window.addEventListener('mousemove',e=>{if(e.target&&e.target.tagName==='CANVAS'&&Number.isFinite(e.clientX)&&Number.isFinite(e.clientY))mousePoint={x:e.clientX,y:e.clientY};},{passive:true});
   const accounts=window.ONYXBotAccounts;
   function safeText(value) {
     return String(value || '').replace(/[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g,'[JWT REDACTED]')
@@ -48,6 +50,9 @@
     return code ? 'WebSocket closed ('+code+'); server reason may be incomplete.' : 'Connection closed without a usable server code.';
   }
   const diagnostics=[];
+  function diagnosticsSnapshot(){
+    return {version:'2.7.0',paused:state.paused,logs:diagnostics.slice(),connections:state.bots.map(b=>({account:b.accountSlot||'main bot slot',ready:!!b.ready,verifying:!!b.verifying,connected:!!b.worker,requested:b.requestedSlots,assigned:b.assignedSlots||0,controlled:b.worker?b.slots:0,alive:b.alive.length,status:safeText(b.status),failure:safeText(b.failureReason||'')}))};
+  }
   function audit(account,kind,message,code) {
     const entry={time:new Date().toISOString(),account:account||'main bot slot',kind:kind,code:code||null,message:safeText(message)};
     diagnostics.push(entry); if(diagnostics.length>300) diagnostics.shift();
@@ -63,7 +68,12 @@
     if(boxEnabled) return state.target;
     if(!$('autoSplit').checked&&$('target').value==='hold') return state.target;
     const api=window.ONYXBotGame;
-    const value=api&&api.target($('autoSplit').checked?'mouse':$('target').value);
+    const mode=$('autoSplit').checked?'mouse':$('target').value;
+    let value=api&&api.target(mode);
+    // تحويل الماوس متاح أثناء المشاهدة والموت أيضًا؛ لا نشترط حياة لاعب المالتي لتحريك البوت.
+    if(api&&mousePoint&&api.screenTarget&&(mode==='mouse'||!value||!Number.isFinite(value.x)||!Number.isFinite(value.y))){
+      const mouse=api.screenTarget(mousePoint.x,mousePoint.y);if(mouse&&Number.isFinite(mouse.x)&&Number.isFinite(mouse.y))value=mouse;
+    }
     state.target=value&&Number.isFinite(value.x)&&Number.isFinite(value.y)?value:null;
     return state.target;
   }
@@ -78,9 +88,9 @@
     if(!aim(b))return;
     b.worker.postMessage({type:'split',count:6});b.lastAutoSplit=now;
   }
-  function reservedCount() {return state.remaining+state.bots.reduce((n,b)=>n+(b.worker&&b.ready?b.slots:b.accountSlot&&(b.worker||b.status==='Queued')?b.requestedSlots:0),0);}
+  function reservedCount() {return state.remaining+state.bots.reduce((n,b)=>n+(b.accountSlot?(b.worker||b.status==='Queued'?(b.ready?b.slots:b.requestedSlots):0):b.worker?(b.bookedSlots||0):0),0);}
   function render() {
-    $('counts').textContent = `${state.bots.reduce((n,b)=>n+b.slots,0)} allocated | ${state.bots.filter(b=>b.ready).reduce((n,b)=>n+b.slots,0)} ready | ${state.bots.reduce((n,b)=>n+b.alive.length,0)} alive | ${state.remaining} waiting`;
+    $('counts').textContent = `${state.bots.filter(b=>b.worker).reduce((n,b)=>n+b.slots,0)} allocated | ${state.bots.filter(b=>b.worker&&b.ready).reduce((n,b)=>n+b.slots,0)} ready | ${state.bots.filter(b=>b.worker&&b.ready).reduce((n,b)=>n+b.alive.length,0)} alive | ${state.remaining} waiting`;
     $('active').replaceChildren(...state.bots.map(b => { const el = document.createElement('div'); el.className='bot'; el.textContent=`${b.name} · ${b.status} · ${b.alive.length}/${b.slots} slots alive`; return el; }));
     for (const id of ['spawn','split','feed']) $(id).disabled = state.paused || !state.bots.some(b=>b.ready);
     $('connect').disabled = reservedCount()>=100;
@@ -91,7 +101,7 @@
     if(!b.accountSlot && !b.ready && (b.worker||b.status==='Queued')){state.remaining=0;}
     clearTimeout(b.timer); clearTimeout(b.respawnTimer); clearTimeout(b.spawnTimer);
     if (b.worker) { b.worker.postMessage({type:'close'}); b.worker.terminate(); b.worker=null; }
-    b.ready=false; b.alive=[]; b.status=reason; render();
+    b.ready=false; b.verifying=false; b.alive=[]; b.status=reason; render();
   }
   function stop(reason='Stopped',preserve=false) { if(accounts&&!preserve)for(let id=1;id<=accounts.count;id++)accounts.setIntent(id,false); if(reason.startsWith('Server changed')){state.target=null;boxDragging=false;drawBox();} feeding=false;state.generation++; state.remaining=0; state.bots.forEach(b=>dispose(b,reason)); state.spawnWanted=false; state.paused=false; $('pause').textContent='Ⅱ Pause'; render(); log(reason); }
   function spawnBot(b) {
@@ -112,8 +122,8 @@
     let worker;
     try { worker = window.ONYXCreateBotCodec(); } catch(e) { dispose(b,'Codec failed'); log(e.message); return; }
     b.worker=worker; b.status='Loading codec'; audit(b.accountSlot||'primary','CODEC_START',b.name);
-    b.timer=setTimeout(()=>{const phase=b.status;const removed=b.worker&&b.worker.isAttached&&!b.worker.isAttached();dispose(b,'Connection timeout');audit(b.accountSlot||'primary','TIMEOUT',b.name+': '+(removed?'Codec frame was removed.': 'Timeout during '+phase+' after 15s.'));},15000);
-    worker.onerror=e=>{dispose(b,'Codec error');audit(b.accountSlot||'primary','CODEC_ERROR',b.name+': '+(e.message||'codec could not load.'));};
+    b.timer=setTimeout(()=>{const phase=b.status;const removed=b.worker&&b.worker.isAttached&&!b.worker.isAttached();b.failureReason='Timeout during '+phase;dispose(b,'Connection timeout');audit(b.accountSlot||'primary','TIMEOUT',b.name+': '+(removed?'Codec frame was removed.': 'Timeout during '+phase+' after 15s.'));},15000);
+    worker.onerror=e=>{b.failureReason=safeText(e.message||'codec could not load.');dispose(b,'Codec error');audit(b.accountSlot||'primary','CODEC_ERROR',b.name+': '+b.failureReason);};
     worker.onmessage=event=>{
       if(generation!==state.generation || b.worker!==worker) return;
       const m=event.data;
@@ -129,20 +139,36 @@
       if(m.type==='open') {b.status='Authenticating';audit(b.accountSlot||'primary','WS_OPEN',b.name+': WebSocket open; waiting for server handshake.');}
       if(m.type==='verification-required') {
         if(!window.ONYXVerification){dispose(b,'Verification UI missing. Reload the updated userscript.');return;}
-        clearTimeout(b.timer);b.verifying=true;b.status='Waiting for verification';
+        clearTimeout(b.timer);clearTimeout(b.spawnTimer);clearTimeout(b.respawnTimer);b.spawnTimer=b.respawnTimer=null;
+        b.restoreAfterVerification=b.restoreAfterVerification||b.alive.length>0;b.ready=false;b.alive=[];b.lastAutoSplit=null;b.verifying=true;b.status='Waiting for verification';
         window.ONYXVerification.request({owner:worker,key:String(m.requestId),label:b.name,requestId:m.requestId,
           isCurrent:()=>generation===state.generation&&b.worker===worker,
           submit:token=>{if(generation!==state.generation||b.worker!==worker)return false;worker.postMessage({type:'verification-response',requestId:m.requestId,challengeType:m.challengeType,token});return true;},
           onState:phase=>{b.status=phase==='submitted'?'Verification sent; waiting for server':'Solve verification';render();},
-          onCancel:reason=>{dispose(b,reason);audit(b.accountSlot||'primary','VERIFICATION_CANCELLED',b.name+': '+reason);}
+          onCancel:reason=>{b.failureReason=safeText(reason);dispose(b,reason);audit(b.accountSlot||'primary','VERIFICATION_CANCELLED',b.name+': '+reason);}
         });
         audit(b.accountSlot||'primary','VERIFICATION_REQUIRED',b.name+': solve the official check for this connection.');
       }
 
-      if(m.type==='ready') {b.verifying=false;if(window.ONYXVerification)window.ONYXVerification.complete(worker);if(b.ready){b.status='Ready';render();return;}clearTimeout(b.timer);b.ready=true;b.slots=m.slots;if(!b.accountSlot)state.remaining=Math.max(0,state.remaining-b.slots);b.border=m.border;b.status='Ready';if(b.accountSlot)fillAccount(b,entry,generation);audit(b.accountSlot||'primary','READY',b.name+': '+m.slots+' players; server assigned '+(m.assignedSlots||m.slots)+' slots.');if($('auto').checked||state.spawnWanted||b.restoreSpawn) spawnBot(b);if(!b.accountSlot)queueNext(entry,generation);}
+      if(m.type==='ready') {
+        const previous=b.bookedSlots||0,granted=Math.max(0,Math.trunc(Number(m.slots)||0));
+        if(!granted){dispose(b,'No assigned slots');return;}
+        const other=b.accountSlot?state.bots.filter(x=>x!==b&&x.accountSlot===b.accountSlot&&x.worker&&x.ready).reduce((n,x)=>n+x.slots,0):0;
+        const use=b.accountSlot?Math.min(granted,Math.max(0,CONTROL_CONFIG.playersPerAccount-other)):Math.min(granted,previous+state.remaining);
+        if(!use){dispose(b,'Account already has four allocated players');return;}
+        b.verifying=false;if(window.ONYXVerification)window.ONYXVerification.complete(worker);clearTimeout(b.timer);
+        b.ready=true;b.slots=use;b.assignedSlots=m.assignedSlots||granted;b.bookedSlots=use;b.border=m.border;b.status='Ready';b.alive=[];b.failureReason='';
+        if(use<granted)worker.postMessage({type:'slot-limit',limit:use});
+        if(!b.accountSlot)state.remaining=Math.max(0,state.remaining+previous-use);
+        if(b.accountSlot){trimAccountQueue(b.accountSlot);fillAccount(b,entry,generation);}
+        audit(b.accountSlot||'primary','READY',b.name+': using '+use+' players; server assigned '+b.assignedSlots+' slots.');
+        if($('auto').checked||state.spawnWanted||b.restoreSpawn||b.restoreAfterVerification)spawnBot(b);
+        b.restoreAfterVerification=false;
+        if(!b.accountSlot)queueNext(entry,generation);
+      }
       if(m.type==='world') {
         const previous=b.status+':'+b.alive.join(',');
-        b.alive=m.alive;
+        b.alive=Array.isArray(m.alive)?[...new Set(m.alive.filter(slot=>Number.isInteger(slot)&&slot>=0&&slot<b.slots))]:[];
         if(b.accountSlot&&b.alive.length&&!b.savedSpawn){b.savedSpawn=true;accounts.setIntent(b.accountSlot,true,entry.host,true);}
         if(!b.alive.length)b.lastAutoSplit=null;
         autoSplit(b);
@@ -157,22 +183,29 @@
         const code=m.code!=null&&Number.isInteger(Number(m.code))?Number(m.code):null;
         const diagnosis=m.type==='close'?diagnoseClose(code,reason):'Bot protocol/WASM returned '+m.type+'.';
         if(b.accountSlot && /\b(?:banned|account_banned|ip_banned)\b/i.test(reason) && !/\b(?:not|unbanned)\b/i.test(reason)){accounts.markBan(b.accountSlot,entry.host);state.bots.filter(x=>x!==b&&x.accountSlot===b.accountSlot).forEach(x=>dispose(x,'Account banned'));}
-        dispose(b,reason);
+        b.failureReason=reason+' | '+diagnosis;dispose(b,reason);
         audit(b.accountSlot||'primary',m.type.toUpperCase(),b.name+': '+reason+' | '+diagnosis,code);
       }
       render();
     }; render();
   }
+  function trimAccountQueue(id) {
+    let remaining=CONTROL_CONFIG.playersPerAccount-state.bots.filter(b=>b.accountSlot===id&&b.worker&&b.ready).reduce((n,b)=>n+b.slots,0);
+    for(const b of state.bots.filter(b=>b.accountSlot===id&&b.status==='Queued'&&!b.worker)){
+      if(remaining<=0){clearTimeout(b.timer);b.status='Allocation complete';continue;}
+      b.requestedSlots=Math.min(b.requestedSlots,remaining);remaining-=b.requestedSlots;
+    }
+  }
   function fillAccount(b,entry,generation) {
     const group=state.bots.filter(x=>x.accountSlot===b.accountSlot&&(x.worker||x.status==='Queued'));
     const allocated=group.reduce((n,x)=>n+(x.ready?x.slots:x.requestedSlots),0);
-    const remaining=4-allocated;
+    const remaining=CONTROL_CONFIG.playersPerAccount-allocated;
     if(remaining<=0||reservedCount()+remaining>100)return;
     const extra={name:'Bot account '+b.accountSlot,accountSlot:b.accountSlot,requestedSlots:remaining,
       restoreSpawn:b.restoreSpawn,ready:false,slots:0,alive:[],status:'Queued',worker:null};
     state.bots.push(extra);
     audit(b.accountSlot,'EXTRA_CONNECTION','Server assigned '+b.slots+' players; requesting '+remaining+' more with the same account.');
-    extra.timer=setTimeout(()=>launch(extra,entry,generation),1000);
+    extra.timer=setTimeout(()=>launch(extra,entry,generation),CONTROL_CONFIG.connectionDelayMs);
   }
   function queueNext(entry,generation,delay=1000) {
     if(generation!==state.generation||state.remaining<=0||state.bots.some(b=>b.status==='Queued'||(b.worker&&!b.ready)))return;
@@ -212,9 +245,9 @@
   $('collapse').onclick=()=>{const main=root.querySelector('main');main.hidden=!main.hidden;$('collapse').textContent=main.hidden?'+':'−';};
   $('opacity').oninput=()=>host.style.opacity=Number($('opacity').value)/100;
   root.querySelectorAll('[data-tab]').forEach(btn=>btn.onclick=()=>{for(const id of ['controls','accounts','active','console']) $(id).hidden=id!==btn.dataset.tab;root.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===btn)));});
-  $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(state.logs.join('\n'));$('copy').textContent='Copied';}catch(_){log('Copy unavailable; select the console text.');}};
+  $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(diagnosticsSnapshot(),null,2));$('copy').textContent='Copied';}catch(_){log('Copy unavailable; use Export JSON.');}};
   $('export').onclick=()=>{
-    const blob=new Blob([JSON.stringify({version:'2.6.3',logs:diagnostics},null,2)],{type:'application/json'});
+    const blob=new Blob([JSON.stringify(diagnosticsSnapshot(),null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;
     link.download='onyx-bot-diagnostics-'+new Date().toISOString().slice(0,10)+'.json';link.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -225,11 +258,18 @@
     for(let id=1;id<=accounts.count;id++) {
       const slot=accounts.getStatus(id);
       const current=state.bots.filter(b=>b.accountSlot===id&&(b.worker||b.status==='Queued'));
+      const allocated=current.filter(b=>b.ready).reduce((n,b)=>n+b.slots,0),alive=current.filter(b=>b.ready).reduce((n,b)=>n+b.alive.length,0);
+      const pending=current.some(b=>!b.ready),missing=Math.max(0,CONTROL_CONFIG.playersPerAccount-allocated);
+      const failure=state.bots.filter(b=>b.accountSlot===id&&b.failureReason&&!b.worker).slice(-1)[0];
       const status=$('account-status-'+id);
-      const badge=slot.banHost===(selected()||{}).host&&slot.banHost?'⛔ BAN':current.some(b=>b.ready)?'🟢 ACTIVE':current.length?'🟡 CONNECTING':slot.verified?'🔵 SAVED':'⚪ OFFLINE';
+      const badge=slot.banHost===(selected()||{}).host&&slot.banHost?'⛔ BAN':alive>=CONTROL_CONFIG.playersPerAccount?'🟢 ACTIVE':allocated>=CONTROL_CONFIG.playersPerAccount?(alive?'🟡 PARTIAL LIVE':'🔵 READY'):allocated?'🟡 PARTIAL':current.length?'🟡 CONNECTING':slot.verified?'🔵 SAVED':'⚪ OFFLINE';
       if(status) status.textContent=badge+' · '+slot.status+' · '+(slot.name||'No account profile')+
-        (current.length?' · '+current.map(b=>b.status+' ('+b.alive.length+'/'+b.slots+')').join(', '):'')+(slot.storageError?' · Saving failed — browser storage unavailable':'');
-      $('account-connect-'+id).disabled=!slot.verified||current.length>0;
+        ' · '+allocated+'/'+CONTROL_CONFIG.playersPerAccount+' players allocated · '+alive+' alive'+
+        (current.length?' · '+current.map(b=>b.status+' ('+b.alive.length+'/'+b.slots+')').join(', '):'')+
+        (missing&&failure?' · Last attempt: '+safeText(failure.failureReason):'')+(slot.storageError?' · Saving failed — browser storage unavailable':'');
+      $('account-connect-'+id).disabled=!slot.verified||!missing||pending;
+      $('account-connect-'+id).textContent=allocated&&missing?'Complete '+missing+' players':'Connect '+CONTROL_CONFIG.playersPerAccount+' players';
+      $('account-spawn-'+id).disabled=state.paused||!allocated||alive>=allocated;
       const loginButton=$('account-'+slot.provider+'-'+id);
       if(loginButton)loginButton.disabled=current.length>0;
       $('account-disconnect-'+id).disabled=current.length===0;
@@ -239,18 +279,20 @@
     const entry=selected();
     if(!entry || !window.ONYXFfaAdapter) return audit(id,'NO_SERVER','Choose a supported game server first.');
     if(!accounts || !accounts.getToken(id))return audit(id,'AUTH_REQUIRED','Log in and verify this bot account first.');
-    if(state.bots.some(b=>b.accountSlot===id&&(b.worker||b.status==='Queued')))
-      return audit(id,'ALREADY_CONNECTED','This slot already has a connection.');
-    if(reservedCount()+4>100)return audit(id,'SERVER_LIMIT','Maximum 100 players allocated or waiting.');
+    const current=state.bots.filter(b=>b.accountSlot===id&&(b.worker||b.status==='Queued'));
+    if(current.some(b=>!b.ready))return audit(id,'STILL_CONNECTING','Wait for this account connection or its verification.');
+    const allocated=current.reduce((n,b)=>n+b.slots,0),missing=Math.max(0,CONTROL_CONFIG.playersPerAccount-allocated);
+    if(!missing)return audit(id,'ALREADY_CONNECTED','All four requested players are already allocated.');
+    if(reservedCount()+missing>100)return audit(id,'SERVER_LIMIT','Maximum 100 players allocated or waiting.');
     if(state.bots.some(b=>(b.worker||b.status==='Queued'))&&state.host&&state.host!==entry.host)
       return audit(id,'SERVER_CHANGED','Stop all bot connections before changing servers.');
     const saved=accounts.getStatus(id);
     if(saved.banHost===entry.host)return audit(id,'BANNED','Server previously reported this account banned. Sign in again after resolving the restriction.');
-    state.host=entry.host;accounts.setIntent(id,true,entry.host,restoring?saved.spawn:false);
-    const b={restoreSpawn:restoring&&saved.spawn,name:'Bot account '+id,accountSlot:id,requestedSlots:4,ready:false,slots:0,
+    state.host=entry.host;accounts.setIntent(id,true,entry.host,restoring?saved.spawn:current.length?(saved.spawn||current.some(b=>b.alive.length>0)):false);
+    const b={restoreSpawn:restoring&&saved.spawn||current.some(b=>b.alive.length>0),name:'Bot account '+id,accountSlot:id,requestedSlots:missing,ready:false,slots:0,
       alive:[],status:'Queued',worker:null};
     state.bots.push(b);
-    audit(id,'CONNECT_REQUEST','Requested one connection with up to 4 players. Server may reject it.');
+    audit(id,'CONNECT_REQUEST','Requested the missing '+missing+' players. '+allocated+' already allocated; server acceptance is required.');
     launch(b,entry,state.generation);render();renderAccounts();
   }
   function disconnectAccount(id) {
@@ -268,13 +310,18 @@
       const status=document.createElement('div');status.className='account-status';status.id='account-status-'+id;
       wrap.appendChild(status);
       const actions=document.createElement('div');actions.className='account-actions';
-      const buttons=[['Login with Facebook','facebook'],['Connect','connect'],['Disconnect','disconnect'],['Logout','logout']];
+      const buttons=[['Login with Facebook','facebook'],['Connect','connect'],['Spawn missing','spawn'],['Disconnect','disconnect'],['Logout','logout']];
       for(const [label,command] of buttons) {
         const button=document.createElement('button');button.textContent=label;
         button.id='account-'+command+'-'+id;
         button.onclick=()=>{
           if(command==='facebook')accounts.login(id,command);
           else if(command==='connect')connectAccount(id);
+          else if(command==='spawn'){
+            const entry=selected();if(!entry||state.paused)return;
+            accounts.setIntent(id,true,entry.host,true);
+            state.bots.filter(b=>b.accountSlot===id&&(b.worker||b.status==='Queued')).forEach(b=>{b.restoreSpawn=true;if(b.ready)spawnBot(b);});
+          }
           else if(command==='disconnect')disconnectAccount(id);
           else {disconnectAccount(id);accounts.clear(id);}
           renderAccounts();
@@ -354,14 +401,14 @@
     if(accounts)restoreAccounts(entry);
     ticks++;drawBox();
     const point=target();
-    $('targetStatus').textContent=point?('Target: '+Math.round(point.x)+', '+Math.round(point.y)):'Waiting for your player position — enter PLAY and update the hosted files.';
+    $('targetStatus').textContent=point?('Target: '+Math.round(point.x)+', '+Math.round(point.y)):'Move the mouse over the connected game to set a bot target. Follow me needs a live player, or falls back to your mouse.';
     if((feeding||($('autoFeed').checked&&point))&&!state.paused&&state.bots.some(b=>b.ready&&b.alive.length))action('feed');
     state.bots.forEach(b=>{if(!b.worker||!b.ready)return;autoSplit(b);if(ticks%10===0)b.worker.postMessage({type:'ping'});
       if(!state.paused&&$('auto').checked)spawnBot(b);
       if(!state.paused&&$('follow').checked&&point)b.worker.postMessage({type:'move',...point});});
   },100);
   window.addEventListener('pagehide',()=>{clearInterval(timer);stop('Reloading',true);},{once:true});
-  window.ONYXBots={stop,observePacket(){ /* Targets come from the active game's coordinate transform. */ }};
+  window.ONYXBots={stop,diagnostics:diagnosticsSnapshot,observePacket(){ /* Targets come from the active game's coordinate transform. */ }};
 
   document.body.appendChild(host);render();
 })();

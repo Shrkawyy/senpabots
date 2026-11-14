@@ -14,7 +14,7 @@ user=user.slice(0,start)+`  // Embedded bot assets: generated from the same file
   }
 `+user.slice(end);
 // Version only our metadata, never CDN dependency URLs or embedded libraries.
-const release='2.6.4';
+const release='2.7.0';
 user=user.replace(/^(\/\/ @version\s+)[^\r\n]+/m, (_,prefix)=>prefix+release)
  .replace(/var VERSION = '[^']+';/, ()=>`var VERSION = '${release}';`);fs.writeFileSync(path.join(base,'kateronyx.user.js'),user);
 const metadata=user.match(/^\/\/ ==UserScript==[\s\S]*?^\/\/ ==\/UserScript==/m);
